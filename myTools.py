@@ -731,11 +731,11 @@ class myDf(pd.DataFrame):
 
     
     
-    def ColCountLines(self, minCount=0, maxCount=9876543210):
-        return self.describe(include="all").transpose().query("(count>=" + str(minCount) + ") & (count<=" + str(maxCount) + ")")["count"]
+    def ColCountLines(self, minCount=0, maxCount=9999999999):
+        return self.describe(include="all").transpose().query("(count>=" + str(minCount) + ") & (count<=" + str(maxCount) + ")")["count"] / self.shape[0] * 100
     
     
-    def ColCountLinesChart(self, typeChart="bar", displayColName=False, minCount=0, maxCount=9876543210):
+    def ColCountLinesChart(self, typeChart="bar", displayColName=False, minCount=0, maxCount=9999999999):
         plt.rcParams.update({'font.size':10})
         serieGraph = self.ColCountLines(minCount,maxCount)
         # Selon qu'on affiche le nom des colonnes ou pas
@@ -774,11 +774,11 @@ class myDf(pd.DataFrame):
                 plt.gca().set_xlabel('Numéro des colonnes')     
         
         title = "Nombre de lignes renseignées par colonne"
-        if (minCount > 0) and (maxCount == 9876543210):
+        if (minCount > 0) and (maxCount == 9999999999):
             title += " (au moins " + str(minCount) + " lignes)" 
-        elif (minCount == 0) and (maxCount != 9876543210):
+        elif (minCount == 0) and (maxCount != 9999999999):
             title += " (au plus " + str(maxCount) + " lignes)" 
-        elif (minCount > 0) and (maxCount != 9876543210):
+        elif (minCount > 0) and (maxCount != 9999999999):
             title += " (entre " + str(minCount) + " et " + str(maxCount) + " lignes)" 
         plt.gca().set_title(title)
         
@@ -1287,9 +1287,9 @@ class myDf(pd.DataFrame):
         a3 = a
         b3 = b
 
-        plt.plot(seriesGraph[features[0]],seriesGraph[features[1]], "o")
+        plt.scatter(seriesGraph[features[0]],seriesGraph[features[1]], alpha=0.2)
         tmp = np.linspace(seriesGraph[features[0]].min(), seriesGraph[features[0]].max(), 1000)
-        plt.plot(tmp,[a*x+b for x in tmp])
+        plt.plot(tmp,[a*x+b for x in tmp], color='red')
         plt.gca().set_xlabel(features[0])
         plt.gca().set_ylabel(features[1])
 
@@ -1478,7 +1478,10 @@ class myDf(pd.DataFrame):
         cramer = math.sqrt(phi2/(min(r,c)-1))
         
         if returnFig:
-            return (tschuprow + cramer) / 2
+            if np.isnan((tschuprow + cramer) / 2):
+                return 0
+            else:
+                return (tschuprow + cramer) / 2
         else:
             nbPlot = 1
             fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
@@ -1697,7 +1700,7 @@ class myDf(pd.DataFrame):
                     if ((corrMatrix.shape[0] > 2) | (corrMatrix.shape[1] > 2)) & (corrMatrix.shape[0] * corrMatrix.shape[1] != 0):
                         f, ax = plt.subplots(figsize=(10, 8))
                         plt.rcParams.update({'font.size':10, 'font.style':'normal'})  
-                        heatMap(corrMatrix, square=True, annot=False)
+                        heatMap(corrMatrix, square=True, annot=multivHeatAnnot)
                         plt.rcParams.update({'font.size':18})
                         if pltTitle == "tbd":
                             plt.suptitle("Matrice des corrélations (linéaire,  Tschuprow, rapport de corrélation)")
