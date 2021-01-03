@@ -306,7 +306,7 @@ def printSingleStat(nb, texte):
 
 
     
-def printRatio(nbPart, nbAll, substract=True, text1="", text2=""):
+def printRatio(nbPart, nbAll, substract=False, text1="", text2=""):
     if substract:
         nb = nbAll-nbPart
     else:
