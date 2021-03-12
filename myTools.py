@@ -29,6 +29,1140 @@ import datetime
 
 
 
+import os
+import datetime
+import time
+import pandas as pd
+import warnings
+from collections import Counter
+import matplotlib.pyplot as plt
+from myTools import *
+
+from sklearn.model_selection import train_test_split
+
+import sklearn
+from sklearn.pipeline import Pipeline
+from matplotlib import pyplot as plt
+from sklearn.impute import KNNImputer
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, f1_score
+from numpy import mean, std
+from sklearn.model_selection import cross_val_predict
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import minmax_scale
+from sklearn.preprocessing import MaxAbsScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import Normalizer
+from sklearn.preprocessing import QuantileTransformer
+from sklearn.preprocessing import PowerTransformer
+from sklearn.preprocessing import KBinsDiscretizer
+
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+
+from sklearn.inspection import permutation_importance
+
+from numpy import percentile
+
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.stats as st
+
+pd.options.display.max_rows = 1000
+pd.options.display.max_columns = 999
+pd.set_option("max_colwidth", 200)
+
+
+
+from pickle import dump
+from pickle import load
+
+from sklearn.metrics import r2_score
+
+from sklearn.preprocessing import PowerTransformer
+
+
+
+def shuffleDf(df1, seed=0):
+
+    df = df1.copy()
+    df = df.reset_index(drop=True)
+    index_lst = df.index.to_list()
+    random.seed(seed)
+    random.shuffle(index_lst)
+    df.index = index_lst
+    df = df.reset_index(drop=False)
+    df = df.sort_values("index")
+    del df["index"] 
+    return df
+
+
+
+
+from sklearn.base import BaseEstimator, TransformerMixin
+class IdentityTransformer(BaseEstimator, TransformerMixin):
+    
+    def __init__(self):
+        pass
+    
+    def fit(self, input_array, y=None):
+        return self
+    
+    def transform(self, input_array, y=None):
+        return input_array*1
+    
+    
+def getPipeline(
+        df,
+        target='', 
+        identifier='', 
+        ordinalThreshold=100,
+        defaultNumImputer=SimpleImputer(strategy='mean'), 
+        defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
+        defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+        meanImputer=[], iterativeImputer=[],mostFrequentImputer=[], constantImputer={},
+        power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
+        defaultScaler=MinMaxScaler(), 
+        minmax=[], standard=[], robust=[], noScale=[],
+        defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
+        ordinal=[], onehot=[],
+        model=DecisionTreeClassifier()):
+
+    # Identification des variables
+    feat_nunique = df.nunique()
+    numerical_feat = [x for x in df.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique >= ordinalThreshold].index))]
+    ordinal_feat = [x for x in df.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique < ordinalThreshold].index))]
+    categorical_feat = [x for x in df.select_dtypes(include=['object', 'bool']).columns if x not in [identifier,target]]
+
+    features = list(df.columns).copy()
+    features.remove(identifier)
+    features.remove(target)      
+    
+    # Construction d'un dataframe qui contient les transformations (imputer, transformer, scaler) à appliquer pour chaque variable
+    dicoTransform = {}
+    for feature in features:
+        dicoTransform[feature] = {'imputer':np.nan, 'transformer': np.nan, 'scaler':np.nan}
+
+    for feature in meanImputer:
+        dicoTransform[feature]['imputer'] = SimpleImputer(strategy='mean')
+    for feature in mostFrequentImputer:
+        dicoTransform[feature]['imputer'] = SimpleImputer(strategy='most_frequent')
+    for feature in iterativeImputer:
+        dicoTransform[feature]['imputer'] = IterativeImputer()
+    for feature in power:
+        dicoTransform[feature]['transformer'] = PowerTransformer(method='yeo-johnson')
+    for feature in quantile:
+        dicoTransform[feature]['transformer'] = QuantileTransformer()
+    for feature in kbins10:
+        dicoTransform[feature]['transformer'] = KBinsDiscretizer(n_bins=10, encode= 'ordinal' , strategy= 'uniform')
+    for feature in kbins50:
+        dicoTransform[feature]['transformer'] = KBinsDiscretizer(n_bins=50, encode= 'ordinal' , strategy= 'uniform')
+    for feature in kbins100:
+        dicoTransform[feature]['transformer'] = KBinsDiscretizer(n_bins=100, encode= 'ordinal' , strategy= 'uniform')
+    for feature in ordinal:
+        dicoTransform[feature]['transformer'] = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10)
+    for feature in onehot:
+        dicoTransform[feature]['transformer'] = OneHotEncoder(handle_unknown='ignore')
+    for feature in minmax:
+        dicoTransform[feature]['scaler'] = MinMaxScaler()
+    for feature in standard:
+        dicoTransform[feature]['scaler'] = StandardScaler()
+    for feature in robust:
+        dicoTransform[feature]['scaler'] = RobustScaler()
+    for feature in noScale:
+        dicoTransform[feature]['scaler'] = IdentityTransformer()
+    
+    for k, v in dicoTransform.items():
+        
+        if type(dicoTransform[k]['imputer']) == float:
+            if k in numerical_feat:
+                dicoTransform[k]['imputer'] = defaultNumImputer
+            elif k in categorical_feat:
+                dicoTransform[k]['imputer'] = defaultCatImputer
+            elif k in ordinal_feat:
+                dicoTransform[k]['imputer'] = defaultOrdImputer
+            else:
+                imputer = 1 / 0
+        if type(dicoTransform[k]['transformer']) == float:
+            if k in numerical_feat:
+                dicoTransform[k]['transformer'] = IdentityTransformer()
+            elif k in categorical_feat:
+                dicoTransform[k]['transformer'] = defaultEncoder
+            elif k in ordinal_feat:
+                dicoTransform[k]['transformer'] = IdentityTransformer()
+            else:
+                transformer = 1 / 0
+        if type(dicoTransform[k]['scaler']) == float:
+            if k in numerical_feat:
+                dicoTransform[k]['scaler'] = defaultScaler
+            elif k in categorical_feat:
+                dicoTransform[k]['scaler'] = IdentityTransformer()
+            elif k in ordinal_feat:
+                dicoTransform[k]['scaler'] = defaultScaler
+            else:
+                scaler = 1 / 0
+
+    column_transform_list = []
+    for k, v in dicoTransform.items():
+        to_insert = True
+        for col_tr in column_transform_list:
+            if (type(dicoTransform[k]['imputer']) == type(col_tr[0])) & (type(dicoTransform[k]['transformer']) == type(col_tr[1])) & (type(dicoTransform[k]['scaler']) == type(col_tr[2])):
+                to_insert = False
+                if type(dicoTransform[k]['transformer']) == sklearn.preprocessing._discretization.KBinsDiscretizer:
+                    if dicoTransform[k]['transformer'].n_bins != col_tr[1].n_bins:
+                        to_insert = True       
+                if type(dicoTransform[k]['imputer']) == sklearn.impute._base.SimpleImputer:
+                    if dicoTransform[k]['imputer'].strategy != col_tr[0].strategy:
+                        to_insert = True
+                if to_insert == False:
+                    break
+        if to_insert == True:
+            column_transform_list.append([dicoTransform[k]['imputer'], dicoTransform[k]['transformer'], dicoTransform[k]['scaler']])
+
+    i = 1
+    transformers = []
+    for steps_transform in column_transform_list:
+        
+        Transformer = Pipeline(steps=[('imp', steps_transform[0]),
+                                      ('trans', steps_transform[1]),
+                                      ('scal', steps_transform[2])])
+        
+        feature_list = []
+        for k, v in dicoTransform.items():
+            to_insert = False
+            if (type(dicoTransform[k]['imputer']) == type(steps_transform[0])) & (type(dicoTransform[k]['transformer']) == type(steps_transform[1])) & (type(dicoTransform[k]['scaler']) == type(steps_transform[2])):
+                to_insert = True
+                if type(dicoTransform[k]['transformer']) == sklearn.preprocessing._discretization.KBinsDiscretizer:
+                    if dicoTransform[k]['transformer'].n_bins != steps_transform[1].n_bins:
+                        to_insert = False
+                if type(dicoTransform[k]['imputer']) == sklearn.impute._base.SimpleImputer:
+                    if dicoTransform[k]['imputer'].strategy != steps_transform[0].strategy:
+                        to_insert = False
+            if to_insert == True:
+                feature_list.append(k)
+                
+        pipeline_step = (str(i), Transformer, feature_list)
+        i += 1
+
+        transformers.append(pipeline_step)
+
+
+    preprocessor = ColumnTransformer(transformers=transformers)
+    pipeline = Pipeline(steps=[('prep',preprocessor),  ('m', model)])
+    
+    return pipeline
+
+
+
+
+
+
+
+def prAndRocCurves(y_train, y_pred_train, y_test, y_pred_test, display_plot=False, title_plot = 'No title', dummy_strategy='constant', dummy_constant=1):
+
+    # Calculating train AUC
+    fpr_train, tpr_train, thr_train = roc_curve(y_train, y_pred_train)
+    roc_auc_train = auc(fpr_train, tpr_train)
+    precision_train, recall_train, _ = precision_recall_curve(y_train, y_pred_train)
+    pr_auc_train = auc(recall_train, precision_train)
+
+    # Calculating test AUC
+    fpr_test, tpr_test, thr_test = roc_curve(y_test, y_pred_test)
+    roc_auc_test = auc(fpr_test, tpr_test)
+    precision_test, recall_test, threshold_test = precision_recall_curve(y_test, y_pred_test)
+    pr_auc_test = auc(recall_test, precision_test)
+
+    
+    if display_plot:
+        
+        size = 1
+        nbPlot = 2
+        fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
+        
+        sub = fig.add_subplot(1,nbPlot,1)
+        sub.set_title('ROC curve')
+        plt.plot(fpr_test,tpr_test, label = 'AUC test = %0.3f' % roc_auc_test, color='red')
+        plt.plot(fpr_train,tpr_train, label = 'AUC train = %0.3f' % roc_auc_train, color='green')
+        #plt.plot(fpr_dummy,tpr_dummy, color='black', label = 'AUC dummy = %0.2f' % roc_auc_dummy)
+        plt.legend(loc = 'lower right')
+        plt.plot([0, 1], [0, 1],linestyle='--')
+        plt.axis('tight')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        
+        sub = fig.add_subplot(1,nbPlot,2)
+        sub.set_title('Precision-Recall curve')
+        plt.plot(recall_test, precision_test, label = 'AUC test = %0.3f' % pr_auc_test, color='red')
+        plt.plot(recall_train, precision_train, label = 'AUC train = %0.3f' % pr_auc_train, color='green')
+        #plt.plot(recall_dummy, precision_dummy, color='black', label = 'AUC dummy = %0.2f' % pr_auc_dummy)
+        plt.legend(loc = 'lower right')
+        plt.axis('tight')
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+
+        
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle(title_plot)
+        
+        plt.show()
+
+    
+        print('TRAIN SET: ROC AUC=%.3f, PR AUC=%.3f' % (roc_auc_train, pr_auc_train))
+        print('TEST SET:  ROC AUC=%.3f, PR AUC=%.3f' % (roc_auc_test, pr_auc_test))        
+
+    return [roc_auc_train, pr_auc_train, roc_auc_test, pr_auc_test]
+
+
+
+
+
+# test transform
+def evaluateRocPrCurvesOnTrainTestSet(
+                                        dfTrain,
+                                        dfTest,
+                                        target='', 
+                                        identifier='', 
+                                        ordinalThreshold=100,
+                                        defaultNumImputer=SimpleImputer(strategy='mean'), 
+                                        defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
+                                        defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+                                        meanImputer=[], iterativeImputer=[], mostFrequentImputer=[], constantImputer={},
+                                        power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
+                                        defaultScaler=MinMaxScaler(), 
+                                        minmax=[], standard=[], robust=[], noScale=[],
+                                        defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
+                                        ordinal=[], onehot=[],
+                                        model=DecisionTreeClassifier(),
+                                        display_plot=True,
+                                        title_plot='No title'):
+    
+    # Identification des variables
+    feat_nunique = dfTrain.nunique()
+    numerical_feat = [x for x in dfTrain.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique >= 100].index))]
+    ordinal_feat = [x for x in dfTrain.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique < 100].index))]
+    categorical_feat = [x for x in dfTrain.select_dtypes(include=['object', 'bool']).columns if x not in [identifier,target]]
+    
+    # Pipeline de transformation et de modélisation
+    pipeline = getPipeline(
+                            dfTrain,
+                            target=target, 
+                            identifier=identifier, 
+                            ordinalThreshold=ordinalThreshold,
+                            defaultNumImputer=defaultNumImputer, 
+                            defaultOrdImputer=defaultOrdImputer, 
+                            defaultCatImputer=defaultCatImputer, 
+                            meanImputer=meanImputer, iterativeImputer=iterativeImputer, mostFrequentImputer=mostFrequentImputer, constantImputer=constantImputer,
+                            power=power, quantile=quantile, kbins10=kbins10, kbins50=kbins50, kbins100=kbins100,
+                            defaultScaler=defaultScaler, 
+                            minmax=minmax, standard=standard, robust=robust, noScale=noScale,
+                            defaultEncoder=defaultEncoder,
+                            ordinal=ordinal, onehot=onehot,
+                            model=model)
+
+    features = list(dfTrain.columns).copy()
+    features.remove(identifier)
+    features.remove(target)          
+
+    # Entrainement
+    time1 = time.time()
+    pipeline.fit(dfTrain[features], dfTrain[target])
+    time2 = time.time()
+    # Prédiction sur le train set
+    time_train = time2 - time1
+    y_pred_train = pipeline.predict_proba(dfTrain[features]).transpose()[1]
+    time3 = time.time()
+    time_pred = time3 - time2
+    # Prédiction sur le test set
+    y_pred_test = pipeline.predict_proba(dfTest[features]).transpose()[1]
+    time4 = time.time()
+
+    # Calcul des AUC ROC et PR et graphiques
+    roc_auc_train, pr_auc_train, roc_auc_test, pr_auc_test = prAndRocCurves(dfTrain[target].values, y_pred_train, dfTest[target].values, y_pred_test, display_plot=display_plot, title_plot=title_plot)
+    
+    return roc_auc_train,pr_auc_train,roc_auc_test,pr_auc_test,time_train,time_pred,len(features)
+
+
+
+# test ratio
+def evaluateRocPrCurves(
+                    df1,
+                    target='', 
+                    identifier='', 
+                    ordinalThreshold=100,
+                    meanImputer=[], iterativeImputer=[], mostFrequentImputer=[], constantImputer={},
+                    defaultNumImputer=SimpleImputer(strategy='mean'), 
+                    defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
+                    defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+                    power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
+                    defaultScaler=MinMaxScaler(), 
+                    minmax=[], standard=[], robust=[],  noScale=[],
+                    defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
+                    ordinal=[], onehot=[],
+                    model=DecisionTreeClassifier(), 
+                    cv = 3,
+                    random_state=None,
+                    seed=0,
+                    test_size=0.2,
+                    display_plot=True,
+                    title_plot='No title'):
+
+
+    df = df1.copy()
+    
+    # Listes des métriques
+    roc_auc_train_list = []
+    pr_auc_train_list = []
+    roc_auc_test_list = []
+    pr_auc_test_list = []
+    time_train_list = []
+    time_pred_list = []
+    nb_feat_list = []
+    nb_train_list = []
+    title_plot_list = []
+    
+    # Si aucun random state n'est passé en paramètre alors on est en cross validation
+    # sinon on est en train-test split avec le random state passé en paramètre
+    if random_state == None:
+        
+        if type(seed) != list:
+            seed = [seed]
+        
+        for s in np.arange(len(seed)):
+            
+            # On réordonne aléatoirement selon le seed passé en paramêtres
+            df = df.sort_values(identifier, ascending=True)
+            df = shuffleDf(df, seed=seed[s])
+            df = df.reset_index(drop=True)
+            # Construction des 10 sous sous-ensembles de cross-validation
+            n = int(df.shape[0] / cv)
+            lstDf = []
+            for i in np.arange(cv):
+                if i < cv-1:
+                    lstDf.append(df.iloc[i*n:(i+1)*n,].copy())
+                else:
+                    lstDf.append(df.iloc[i*n:,].copy())        
+            del df
+            for i in np.arange(cv):
+                dfTest = lstDf[i]
+                lstTrainDf = []
+                for j in np.arange(cv):
+                    if j != i:
+                        lstTrainDf.append(lstDf[j])
+                dfTrain = pd.concat(lstTrainDf)  
+
+                res = evaluateRocPrCurvesOnTrainTestSet(
+                                    dfTrain,
+                                    dfTest,
+                                    target=target, 
+                                    identifier=identifier, 
+                                    ordinalThreshold=ordinalThreshold,
+                                    defaultNumImputer=defaultNumImputer, 
+                                    defaultOrdImputer=defaultOrdImputer, 
+                                    defaultCatImputer=defaultCatImputer, 
+                                    power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
+                                    defaultScaler=defaultScaler, 
+                                    minmax=minmax, 
+                                    standard=standard, 
+                                    robust=robust, 
+                                    defaultEncoder=defaultEncoder,
+                                    ordinal=ordinal, 
+                                    onehot=onehot,
+                                    model=model, 
+                                    display_plot=display_plot,
+                                    title_plot=title_plot)
+
+                # Conservation des métriques
+                roc_auc_train_list.append(res[0])
+                pr_auc_train_list.append(res[1])
+                roc_auc_test_list.append(res[2])
+                pr_auc_test_list.append(res[3])
+                time_train_list.append(res[4])
+                time_pred_list.append(res[5])
+                nb_feat_list.append(res[6])
+                nb_train_list.append(dfTrain.shape[0])
+                if len(seed) > 1:
+                    title = title_plot + ' | '
+                else:
+                    title = title_plot
+                title_plot_list.append(title)            
+
+    else:
+        cv = 1
+        # On fait un train-test split
+        dfTrain, dfTest = train_test_split(df, test_size=test_size, random_state=random_state)   
+        res = evaluateRocPrCurvesOnTrainTestSet(
+                            dfTrain,
+                            dfTest,
+                            target=target, 
+                            identifier=identifier, 
+                            defaultNumImputer=defaultNumImputer, 
+                            defaultOrdImputer=defaultOrdImputer, 
+                            defaultCatImputer=defaultCatImputer, 
+                            ordinalThreshold=ordinalThreshold,
+                            power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
+                            defaultScaler=defaultScaler, 
+                            minmax=minmax, 
+                            standard=standard, 
+                            robust=robust, 
+                            defaultEncoder=defaultEncoder,
+                            ordinal=ordinal, 
+                            onehot=onehot,
+                            model=model, 
+                            display_plot=display_plot,
+                            title_plot=title_plot)        
+        # Conservation des métriques
+        roc_auc_train_list.append(res[0])
+        pr_auc_train_list.append(res[1])
+        roc_auc_test_list.append(res[2])
+        pr_auc_test_list.append(res[3])
+        time_train_list.append(res[4])
+        time_pred_list.append(res[5])
+        nb_feat_list.append(res[6])
+        nb_train_list.append(dfTrain.shape[0])
+        title_plot_list.append(title_plot)    
+        
+
+     
+    try:
+        del lstDf
+    except:
+        pass
+    try:
+        del df
+    except:
+        pass
+    try:
+        del dfTrain
+        del dfTest
+    except:
+        pass
+ 
+
+	    
+    # SI plot, Affichage des métriques moyennes
+    if (cv > 1) & (display_plot == True) & (random_state == None):
+        # Calcul des métriques moyennes
+        mean_roc_auc_train = np.array(roc_auc_train_list).mean()
+        mean_pr_auc_train = np.array(pr_auc_train_list).mean()
+        mean_roc_auc_test = np.array(roc_auc_test_list).mean()
+        mean_pr_auc_test = np.array(pr_auc_test_list).mean()
+        print('')
+        print('_______________________________________________________________________________________________________________________________________')
+        print('METRIQUES MOYENNES TEST:')
+        print('ROC AUC = %.3f' % (mean_roc_auc_test))
+        print('PR AUC  = %.3f' % (mean_pr_auc_test))
+        print('_______________________________________________________________________________________________________________________________________')
+        print('_______________________________________________________________________________________________________________________________________')
+        print('METRIQUES MOYENNES TRAIN:')
+        print('ROC AUC = %.3f' % (mean_roc_auc_train))
+        print('PR AUC  = %.3f' % (mean_pr_auc_train))
+        print('_______________________________________________________________________________________________________________________________________')        
+        print('')
+        print('')
+    
+    # Retour des métriques
+    return pd.DataFrame({'title':title_plot_list,
+                         'roc_auc_train':roc_auc_train_list,
+                         'roc_auc_test':roc_auc_test_list,
+                         'pr_auc_train':pr_auc_train_list,
+                         'pr_auc_test':pr_auc_test_list,
+                         'time_train':time_train_list,
+                         'time_pred':time_pred_list,
+                         'nb_feat':nb_feat_list,
+                         'nb_train':nb_train_list,
+                         'timestamp': [round(time.time(),0) for x in title_plot_list]
+                        })
+
+
+
+
+
+def ColMode(df, feature, key):
+    
+    if type(key) == str:
+        key = [key]
+    if type(feature) == str:
+        feature = [feature]
+    
+    # dataframe de travail sans les nans et avec les colonnes feature et key
+    cols = feature.copy()
+    cols.extend(key)
+    tmp = df[cols].dropna()
+    
+    # Count par feature-key
+    tmp = pd.DataFrame(tmp.groupby(cols).size(), columns=['COUNT']).reset_index(drop=False)
+    
+    # Par key, valeurs les plus fréquentes de la feature
+    tmpMaxCount = tmp.groupby(by=key).agg({'COUNT': 'max'}).reset_index(drop=False)
+    colsMerge = key.copy()
+    colsMerge.append('COUNT')
+    tmp = tmp.merge(tmpMaxCount, left_on=colsMerge, right_on=colsMerge)
+
+    # A chaque valeur de feature on affecte un poids égal au nombre de fois que la valeur est prise dans la table
+    colsPopularity = feature.copy()
+    colsPopularity.append('COUNT')
+    popularity = tmp.groupby(feature).agg({'COUNT': 'sum'}).reset_index(drop=False)
+    colsPopularity = feature.copy()
+    colsPopularity.append('POPULARITY')
+    popularity.columns = colsPopularity
+    
+    tmp = tmp.merge(popularity)
+    
+    tmp2 = tmp.groupby(key).agg({'COUNT': 'max'}).reset_index(drop=False)
+    tmp = tmp.merge(tmp2)
+    tmp2 = tmp.groupby(key).agg({'POPULARITY': 'min'}).reset_index(drop=False)
+    tmp = tmp.merge(tmp2)
+    
+    del tmp['COUNT']
+    del tmp['POPULARITY']
+    
+    return tmp
+
+def TransformUnique(df, key):
+    categorical_ix = df.select_dtypes(include=['object']).columns
+    dfCat = df[key].drop_duplicates()
+    for col in categorical_ix:
+        try:
+            dfCat = dfCat.merge(ColMode(df, col, key), left_on=key, right_on=key, how='left')
+        except:
+            print(col)
+    dfNum = df.groupby(key).mean().reset_index(drop=False)
+    dfUnique = dfCat.merge(dfNum, left_on=key, right_on=key, how='left')
+    return dfUnique
+
+
+
+
+def statsMissingValues(df):
+    rateOfMissing = (df.isnull()).sum() / df.shape[0] * 100
+    rateOfMissing = rateOfMissing.reset_index(drop=False)
+    rateOfMissing.columns = ['feature','missingRate']
+    #return rateOfMissing
+    return rateOfMissing[rateOfMissing.missingRate > 0].sort_values('missingRate', ascending=False)
+
+
+
+def delColWIthMissing(df, missingRateThreshold=1):
+    missingRates = (df.isnull()).sum() / df.shape[0]
+    for col in missingRates.index:
+        if missingRates[col] >= missingRateThreshold:
+            del df[col]
+    return df
+
+
+
+
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+
+def featureImportance(df1, target, identifier, nbCalc=3, model=DecisionTreeClassifier()):
+
+    df = df1.copy()
+    
+    y = df[target]
+    del df[target]
+    del df[identifier]
+            
+    for i in np.arange(nbCalc):
+        model.fit(df, y)
+        try:
+            imp = model.feature_importances_
+        except:
+            imp = model.named_steps['m'].feature_importances_
+        if i == 0:
+            importance = pd.DataFrame(imp)
+        else:
+            importance = pd.concat([importance,pd.DataFrame(imp)], axis=1)
+        i += 1
+        
+    statImp = pd.DataFrame(list(df.columns), columns=['feature'])
+    
+    statImp['impMin'] = np.min(importance, axis=1)
+    statImp['impQ25'] = np.quantile(importance, 0.25, axis=1)
+    statImp['impMean'] = np.mean(importance, axis=1)
+    statImp['impMedian'] = np.median(importance, axis=1)
+    statImp['impQ75'] = np.quantile(importance, 0.75, axis=1)
+    statImp['impMax'] = np.max(importance, axis=1)
+    
+    statImp = statImp.sort_values('impMedian', ascending=False).reset_index(drop=True).reset_index(drop=False)
+    statImp = statImp.rename(columns={'index':'feat_imp_classement'})
+    statImp['feat_imp_classement'] = statImp.apply(lambda x: x.feat_imp_classement+1, axis=1)
+    
+    return statImp
+
+
+def permutationImportance(df1, target, identifier, model=DecisionTreeClassifier(), scoring='roc_auc'):
+    
+    y, X, X_col = getyAndX(df1, target, identifier)
+    results = permutation_importance(model, X, y, scoring=scoring)
+    permImp = pd.DataFrame(results.importances_mean, columns=['perm_imp'])
+    permImp['feature'] = X_col
+    permImp = permImp[['feature','perm_imp']]
+    
+    permImp = permImp.sort_values('perm_imp', ascending=False).reset_index(drop=True).reset_index(drop=False)
+    permImp = permImp.rename(columns={'index':'perm_classement'})
+    permImp['perm_classement'] = permImp.apply(lambda x: x.perm_classement+1, axis=1)
+    
+    return permImp
+
+
+def featureAndPermutationImportance(df1, target, identifier, model=DecisionTreeClassifier(), scoring='roc_auc'):
+    perm_imp = permutationImportance(X, y, X_col, model, scoring=scoring)
+    imp = featureImportance(X, y, X_col, model)
+    imp = imp.merge(perm_imp, left_on='feature', right_on='feature')
+    imp['diff_classement'] = imp.apply(lambda x: np.abs(x.feat_imp_classement - x.perm_classement), axis=1)
+    imp['best_classement'] = imp.apply(lambda x: np.min([x.feat_imp_classement, x.perm_classement]), axis=1)
+    imp = imp[['feature', 'impMean', 'impMin', 'impQ25',  'impMedian', 'impQ75', 'impMax', 'perm_imp', 'feat_imp_classement', 'perm_classement', 'diff_classement', 'best_classement']]
+    
+    size = 1
+    nbPlot = 2
+    fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
+    
+    sub = fig.add_subplot(1,nbPlot,1)
+    sub.set_title('Feature importance')
+    plt.bar([x for x in range(len(imp))], imp['impMedian'].sort_values(ascending=False))
+    plt.axis('tight')
+    plt.xlabel('Features')
+    plt.ylabel('Importance')
+
+    sub = fig.add_subplot(1,nbPlot,2)
+    sub.set_title('Permutation importance')
+    plt.bar([x for x in range(len(imp))], imp['perm_imp'].sort_values(ascending=False))
+    plt.axis('tight')
+    plt.xlabel('Features')
+    plt.ylabel('Importance')
+
+    plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+    plt.suptitle("Feature importance")
+
+    plt.show()
+    
+    return imp
+
+
+def evaluateFeatureImportance(df1, 
+                                target='', 
+                                identifier='', 
+                                ordinalThreshold=100,
+                                defaultNumImputer=SimpleImputer(strategy='mean'), 
+                                defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
+                                defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+                                meanImputer=[], iterativeImputer=[], mostFrequentImputer=[], constantImputer={},
+                                power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
+                                defaultScaler=MinMaxScaler(), 
+                                minmax=[], standard=[], robust=[], noScale=[],
+                                defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
+                                ordinal=[], onehot=[],
+                                models=[RandomForestClassifier(), XGBClassifier()],
+                                label_models=['Rando forest','XGBoost'],
+                                show_plot=True,                              
+                                title_plot='No title'):
+
+    df = df1.copy()
+    
+    pipeline1 = getPipeline(
+                        df,
+                        target=target, 
+                        identifier=identifier, 
+                        ordinalThreshold=ordinalThreshold,
+                        defaultNumImputer=defaultNumImputer, 
+                        defaultOrdImputer=defaultOrdImputer, 
+                        defaultCatImputer=defaultCatImputer, 
+                        meanImputer=meanImputer, iterativeImputer=iterativeImputer,mostFrequentImputer=mostFrequentImputer, constantImputer=constantImputer,
+                        power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
+                        defaultScaler=defaultScaler, 
+                        minmax=minmax, standard=standard, robust=robust, noScale=noScale,
+                        defaultEncoder=defaultEncoder,
+                        ordinal=ordinal, onehot=onehot,
+                        model=models[0])
+    
+    pipeline2 = getPipeline(
+                        df,
+                        target=target, 
+                        identifier=identifier, 
+                        ordinalThreshold=ordinalThreshold,
+                        defaultNumImputer=defaultNumImputer, 
+                        defaultOrdImputer=defaultOrdImputer, 
+                        defaultCatImputer=defaultCatImputer, 
+                        meanImputer=meanImputer, iterativeImputer=iterativeImputer,mostFrequentImputer=mostFrequentImputer, constantImputer=constantImputer,
+                        power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
+                        defaultScaler=defaultScaler, 
+                        minmax=minmax, standard=standard, robust=robust, noScale=noScale,
+                        defaultEncoder=defaultEncoder,
+                        ordinal=ordinal, onehot=onehot,
+                        model=models[1])
+    
+    impRF = featureImportance(df, identifier=identifier, target=target, model=pipeline1)
+    impRF = impRF[['feature','impMedian','feat_imp_classement']].rename(columns={'impMedian':'RFFeatImp','feat_imp_classement':'RFClassement'})
+    impXG = featureImportance(df, identifier=identifier, target=target, model=pipeline2)
+    impXG = impXG[['feature','impMedian','feat_imp_classement']].rename(columns={'impMedian':'XGFeatImp','feat_imp_classement':'XGClassement'})
+    imp = impRF.merge(impXG, left_on='feature', right_on='feature')
+    
+    imp['bestClassement'] = imp.apply(lambda x: np.min([x.RFClassement, x.XGClassement]), axis=1)
+    imp['diffClassement'] = imp.apply(lambda x: np.abs(x.RFClassement - x.XGClassement), axis=1)
+    
+    imp = imp[['feature','RFFeatImp','XGFeatImp','RFClassement','XGClassement','bestClassement','diffClassement']]
+    imp = imp.sort_values('bestClassement')
+
+    if show_plot:
+        
+        size = 1
+        nbPlot = 2
+        fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
+
+        sub = fig.add_subplot(1,nbPlot,1)
+        sub.set_title(label_models[0])
+        plt.bar([x for x in range(len(imp))], imp['RFFeatImp'].sort_values(ascending=False))
+        plt.axis('tight')
+        plt.xlabel('Features')
+        plt.ylabel('Importance')
+
+        sub = fig.add_subplot(1,nbPlot,2)
+        sub.set_title(label_models[1])
+        plt.bar([x for x in range(len(imp))], imp['XGFeatImp'].sort_values(ascending=False))
+        plt.axis('tight')
+        plt.xlabel('Features')
+        plt.ylabel('Importance')
+
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle(title_plot)
+
+
+        plt.show()
+        
+    return imp.sort_values('bestClassement')
+
+
+
+
+
+
+def stats(df1, identifier='', target='', inclCol=[], whis=1.5, excludeDominantExtrem=True):
+    
+    if type(target) == str:
+        target = [target]
+    if type(identifier) == str:
+        identifier = [identifier]
+    
+    colToExclude = target
+    colToExclude.extend(identifier)
+    
+    numerical_ix = list(df1.select_dtypes(include=['float64','int64']).columns)
+    dico_nunique = {}
+    dico_nb_not_missing = {}
+    dico_missing_prct = {}
+    dico_nb_outliers = {}
+    dico_cut_off_up = {}
+    dico_nb_outliers_up = {}
+    dico_cut_off_down = {}
+    dico_nb_outliers_down = {}
+    dico_min = {}
+    dico_q25 = {}
+    dico_median = {}
+    dico_q75 = {}
+    dico_max = {}
+    dico_skew = {}
+    dico_kurt = {}
+    dico_mean = {}
+    dico_std = {}
+    dico_norm_range_left = {}
+    dico_norm_range_center = {}
+    dico_norm_range_right = {}
+    dico_norm_range_corr = {}
+
+    nb_tot_rec = df1.shape[0]
+    
+    for col in numerical_ix:
+        
+        if col not in colToExclude:
+            
+            if (col in inclCol) or (inclCol == []):
+            
+                df = df1.copy()
+                df = df[~df[col].isnull()]
+                dataCol = df[col]
+                nb_not_missing = len(dataCol)
+                missing_prct = (nb_tot_rec - nb_not_missing) / nb_tot_rec * 100
+
+                min_val = np.min(dataCol)
+                max_val = np.max(dataCol)
+                q25 = percentile(dataCol, 25)
+                q75 = percentile(dataCol, 75) 
+                lower = -999
+                upper = 999            
+                if excludeDominantExtrem and (dataCol.nunique() > 1000):
+                    if q25 == min_val:
+                        lower = min_val
+                        dataCol = df[df[col] > min_val][col]
+                        q25, q75 = percentile(dataCol, 25), percentile(dataCol, 75)
+                    if q75 == max_val:
+                        upper = max_val
+                        dataCol = df[df[col] < max_val][col]
+                        q25, q75 = percentile(dataCol, 25), percentile(dataCol, 75)
+                iqr = q75 - q25
+                median = np.median(dataCol)
+                mean = np.mean(dataCol)
+                std = np.std(dataCol)
+                # see for whis:
+                # https://stackoverflow.com/questions/17725927/boxplots-in-matplotlib-markers-and-outliers
+                cut_off = iqr * whis
+                if lower == -999:
+                    lower = q25 - cut_off            
+                if upper == 999:
+                    upper = q75 + cut_off
+                nb_outliers_down = df[df[col] < lower].shape[0] 
+                nb_outliers_up = df[df[col] > upper].shape[0]
+                nb_outliers = nb_outliers_up + nb_outliers_down
+
+                dico_nunique[col] = dataCol.nunique()
+                dico_nb_not_missing[col] = nb_not_missing
+                dico_missing_prct[col] = missing_prct
+
+                dico_q25[col] = q25
+                dico_min[col] = min_val      
+                dico_median[col] = median     
+                dico_q75[col] = q75
+                dico_max[col] = max_val
+
+                dico_mean[col] = mean
+                dico_std[col] = std
+
+                #dico_nb_outliers[col] = nb_outliers
+                dico_cut_off_up[col] = upper
+                dico_nb_outliers_up[col] = nb_outliers_up
+                dico_cut_off_down[col] = lower
+                dico_nb_outliers_down[col] = nb_outliers_down
+
+                dico_skew[col] = st.skew(dataCol)
+                dico_kurt[col] = st.kurtosis(dataCol)
+
+                #n1 = df[(df[col]>=mean-3*std) & (df[col]<=mean-std)].shape[0]/nb_not_missing
+                #n2 = df[(df[col]>=mean-std) & (df[col]<=mean+std)].shape[0]/nb_not_missing
+                #n3 = df[(df[col]>=mean+std) & (df[col]<=mean+3*std)].shape[0]/nb_not_missing
+                #dico_norm_range_left[col] = n1
+                #dico_norm_range_center[col] = n2
+                #dico_norm_range_right[col] = n3
+                #dico_norm_range_corr[col] = r2_score([n1,n2,n3],[0.1573,0.6827,0.1573])
+            
+    del df
+            
+    res = pd.DataFrame({'feature': list(dico_nunique.keys()),
+                        'nb_unique': list(dico_nunique.values()),
+                        'missing_prct': list(dico_missing_prct.values()),
+                        'mini': list(dico_min.values()),
+                        'q25': list(dico_q25.values()),
+                        'median': list(dico_median.values()),
+                        'q75': list(dico_q75.values()),
+                        'maxi': list(dico_max.values()),
+                        'mean': list(dico_mean.values()),
+                        'std': list(dico_std.values()),
+                        'skewness': list(dico_skew.values()),
+                        'kurtosis': list(dico_kurt.values()), 
+                        #'norm_range_corr': list(dico_norm_range_corr.values()),                        
+                        #'norm_range_left': list(dico_norm_range_left.values()),
+                        #'norm_range_center': list(dico_norm_range_center.values()),
+                        #'norm_range_right': list(dico_norm_range_right.values()),
+                        #'nb_not_missing': list(dico_nb_not_missing.values()),
+                        #'nb_outliers': list(dico_nb_outliers.values()),
+                        'cut_off_down': list(dico_cut_off_down.values()),                        
+                        'nb_outliers_down': list(dico_nb_outliers_down.values()),
+                        'cut_off_up': list(dico_cut_off_up.values()),                        
+                        'nb_outliers_up': list(dico_nb_outliers_up.values())
+                        
+                       })
+    
+    return res
+
+
+
+
+def distribRatio(df1, feature, target, bins=100):
+    
+    df = df1.copy()
+
+    mini = df[feature].min()
+    maxi = df[feature].max()
+
+    l_inf = [mini + x * (maxi-mini)/bins for x in np.arange(bins)]
+    l_sup = [mini + (x+1) * (maxi-mini)/bins for x in np.arange(bins)]
+
+    res_inf = []
+    res_inf_incl = []
+    res_sup = []
+    res_sup_incl = []
+    nb = []
+    ratio = []
+
+    tmp = df[df[feature] == mini].copy()
+    if tmp.shape[0] > df.shape[0] / 100:
+        bins_mini = True
+    else:
+        bins_mini = False
+
+    tmp = df[df[feature] == maxi].copy()
+    if tmp.shape[0] > df.shape[0] / 100:
+        bins_maxi = True
+    else:
+        bins_maxi = False
+
+    tmp = df[(df[feature] >= l_inf[bins-1]) & (df[feature] <= l_inf[bins-1])].copy()
+    if tmp.shape[0] < 1000:
+        last_bin_less_that_1000 = True
+    else:
+        last_bin_less_that_1000 = False   
+
+
+    i=1
+    keepPreviousInf = False
+    for interval in zip(l_inf, l_sup):
+
+        if keepPreviousInf == False:
+            borne_inf = interval[0]
+
+        if last_bin_less_that_1000 and (i == bins-1):
+            borne_sup = maxi
+        elif last_bin_less_that_1000 & (i == bins):
+            break
+        else:
+            borne_sup = interval[1]
+
+        if (borne_inf == mini) & (bins_mini == True):
+            # On fait un bins spécial pour le mini
+            tmp = df[df[feature]==mini].copy()
+            nb_pos = tmp[(tmp[target]==1)].shape[0]
+            nb_tot = tmp.shape[0]
+            res_inf.append(mini)
+            res_inf_incl.append(True)
+            res_sup.append(mini)
+            res_sup_incl.append(True)   
+            nb.append(nb_tot)
+            ratio.append(nb_pos / nb_tot)
+            # Et pour le suivant on exlu le mini
+            tmp = df[(df[feature]>borne_inf) & (df[feature]<borne_sup)].copy()
+            nb_pos = tmp[(tmp[target]==1)].shape[0]
+            nb_tot = tmp.shape[0]
+            if nb_tot < 1000:
+                keepPreviousInf = True
+            else:
+                keepPreviousInf = False
+                res_inf.append(borne_inf)
+                res_inf_incl.append(False)
+                res_sup.append(borne_sup)
+                res_sup_incl.append(False)  
+                nb.append(nb_tot)
+                ratio.append(nb_pos / nb_tot)
+        else:       
+            if i < bins:                 
+                tmp = df[(df[feature]>=borne_inf) & (df[feature]<borne_sup)].copy()
+            else:                  
+                tmp = df[(df[feature]>=borne_inf) & (df[feature]<=borne_sup)].copy()
+            nb_pos = tmp[(df[target]==1)].shape[0]
+            nb_tot = tmp.shape[0]
+            if (nb_tot < 1000) & (i < bins):
+                keepPreviousInf = True
+            else:
+                keepPreviousInf = False
+                res_inf.append(borne_inf)
+                res_sup.append(borne_sup)                     
+                if i < bins:
+                    res_inf_incl.append(True)            
+                    res_sup_incl.append(False)                   
+                else:
+                    res_inf_incl.append(True)            
+                    res_sup_incl.append(True) 
+                nb.append(nb_tot)
+                if (i == bins) & (nb_tot < 1000):
+                    print("hello")
+                    ratio.append(previous_ratio)
+                else:
+                    ratio.append(nb_pos / nb_tot)
+                previous_ratio = nb_pos / nb_tot
+        i+=1
+
+    return pd.DataFrame({'feature': [feature for x in ratio], 'borne_inf':res_inf, 'borne_inf_incl':res_inf_incl, 'borne_sup':res_sup, 'borne_sup_incl': res_sup_incl, 'nb_tot': nb, 'ratio': ratio}).drop_duplicates()
+
+
+
+
+def distribImbalanced(df, feature, target, bins=100):
+    
+    tmp = distribRatio(df, feature, target, bins=bins)
+    
+    mini = df[feature].min()
+    maxi = df[feature].max()
+    
+    l_inf = [mini + x * (maxi-mini)/bins for x in np.arange(bins)]
+    l_sup = [mini + (x+1) * (maxi-mini)/bins for x in np.arange(bins)]
+        
+    nb_pos_tot = df[df[target] == 1].shape[0]
+    nb_tot = df.shape[0]
+    ratio_pos = nb_pos_tot / nb_tot
+
+    f = plt.figure() 
+    f.set_figwidth(8) 
+    f.set_figheight(6) 
+        
+    plt.plot((tmp.borne_inf + tmp.borne_sup) / 2, tmp.ratio)
+    plt.plot([mini,maxi], [ratio_pos for x in [mini,maxi]],'g--')
+    plt.xlabel('valeur feature')
+    plt.ylabel('ratio classe positive')
+    plt.title('Distribution de la classe positive selon ' + feature)
+    plt.grid(True)
+    plt.show() 
+
+
+
+
+
+
+def getStatsAndImp(df):
+    
+    imp =  evaluateFeatureImportance(df, 
+                                    target='TARGET', 
+                                    identifier='SK_ID_CURR', 
+                                    minmax=[], 
+                                    standard=[], 
+                                    robust=[], 
+                                    ordinal=[], 
+                                    onehot=[],
+                                    models=[RFmodel, XGmodel],
+                                    label_models=['Rando forest','XGBoost'],
+                                    show_plot=False,                                     
+                                    title_plot='Merged dataset - Feature importance')
+
+    statFeat = stats(df, identifier='SK_ID_CURR',target='TARGET',excludeDominantExtrem=True)
+    statFeat = statFeat.merge(imp[['feature','bestClassement','RFClassement','XGClassement']], left_on='feature', right_on='feature')
+    statFeat = statFeat.sort_values('bestClassement')
+    statFeat = statFeat.reset_index(drop=True)
+    
+    return statFeat, imp
+
+
+
+
+
 def Scatter(X, Y, X_name, Y_name, title="", alpha=0.1, color=None):
     import matplotlib.pyplot as plt
     plt.rcParams.update({'font.size':10})
