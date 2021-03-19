@@ -80,6 +80,16 @@ from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 
+
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import BorderlineSMOTE
+from imblearn.over_sampling import ADASYN
+
+
+
+
 from sklearn.inspection import permutation_importance
 
 from numpy import percentile
@@ -139,15 +149,21 @@ def getPipeline(
         ordinalThreshold=100,
         defaultNumImputer=SimpleImputer(strategy='mean'), 
         defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
-        defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+        defaultCatImputer=SimpleImputer(strategy='most_frequent'), 
         meanImputer=[], iterativeImputer=[],mostFrequentImputer=[], constantImputer={},
         power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
         defaultScaler=MinMaxScaler(), 
         minmax=[], standard=[], robust=[], noScale=[],
         defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
         ordinal=[], onehot=[],
+        over=None, under=None,
         model=DecisionTreeClassifier()):
-
+        
+    if (over, under) != (None, None):
+        from imblearn.pipeline import Pipeline
+    else:
+        from sklearn.pipeline import Pipeline
+    
     # Identification des variables
     feat_nunique = df.nunique()
     numerical_feat = [x for x in df.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique >= ordinalThreshold].index))]
@@ -158,7 +174,7 @@ def getPipeline(
     features.remove(identifier)
     features.remove(target)      
     
-    # Construction d'un dataframe qui contient les transformations (imputer, transformer, scaler) à appliquer pour chaque variable
+    # Construction d'un dictionnaire qui contient les transformations (imputer, transformer, scaler) à appliquer pour chaque variable
     dicoTransform = {}
     for feature in features:
         dicoTransform[feature] = {'imputer':np.nan, 'transformer': np.nan, 'scaler':np.nan}
@@ -169,6 +185,8 @@ def getPipeline(
         dicoTransform[feature]['imputer'] = SimpleImputer(strategy='most_frequent')
     for feature in iterativeImputer:
         dicoTransform[feature]['imputer'] = IterativeImputer()
+    for feature, constant in constantImputer.items():
+        dicoTransform[feature]['imputer'] = SimpleImputer(strategy='constant', fill_value=constant)
     for feature in power:
         dicoTransform[feature]['transformer'] = PowerTransformer(method='yeo-johnson')
     for feature in quantile:
@@ -234,6 +252,8 @@ def getPipeline(
                 if type(dicoTransform[k]['imputer']) == sklearn.impute._base.SimpleImputer:
                     if dicoTransform[k]['imputer'].strategy != col_tr[0].strategy:
                         to_insert = True
+                    elif (dicoTransform[k]['imputer'].strategy == 'constant') & (dicoTransform[k]['imputer'].fill_value != col_tr[0].fill_value):
+                        to_insert = True
                 if to_insert == False:
                     break
         if to_insert == True:
@@ -258,6 +278,8 @@ def getPipeline(
                 if type(dicoTransform[k]['imputer']) == sklearn.impute._base.SimpleImputer:
                     if dicoTransform[k]['imputer'].strategy != steps_transform[0].strategy:
                         to_insert = False
+                    elif (dicoTransform[k]['imputer'].strategy == 'constant') & (dicoTransform[k]['imputer'].fill_value != steps_transform[0].fill_value):
+                        to_insert = False
             if to_insert == True:
                 feature_list.append(k)
                 
@@ -268,8 +290,18 @@ def getPipeline(
 
 
     preprocessor = ColumnTransformer(transformers=transformers)
-    pipeline = Pipeline(steps=[('prep',preprocessor),  ('m', model)])
     
+    if (over, under) == (None, None):
+        pipeline = Pipeline(steps=[('prep',preprocessor),  ('m', model)])
+    elif (over != None) & (under == None):
+        pipeline = Pipeline(steps=[('prep',preprocessor), ('over' , over),  ('m', model)])
+    elif (over == None) & (under != None):
+        pipeline = Pipeline(steps=[('prep',preprocessor), ('under' , under),  ('m', model)])
+    else:
+        pipeline = Pipeline(steps=[('prep',preprocessor), ('over' , over), ('under' , under),  ('m', model)])
+    
+    dump(pipeline, open('pipeline.pkl','wb')) 
+
     return pipeline
 
 
@@ -336,7 +368,7 @@ def prAndRocCurves(y_train, y_pred_train, y_test, y_pred_test, display_plot=Fals
 
 
 
-# test transform
+
 def evaluateRocPrCurvesOnTrainTestSet(
                                         dfTrain,
                                         dfTest,
@@ -345,23 +377,19 @@ def evaluateRocPrCurvesOnTrainTestSet(
                                         ordinalThreshold=100,
                                         defaultNumImputer=SimpleImputer(strategy='mean'), 
                                         defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
-                                        defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+                                        defaultCatImputer=SimpleImputer(strategy='most_frequent'), 
                                         meanImputer=[], iterativeImputer=[], mostFrequentImputer=[], constantImputer={},
                                         power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
                                         defaultScaler=MinMaxScaler(), 
                                         minmax=[], standard=[], robust=[], noScale=[],
                                         defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
                                         ordinal=[], onehot=[],
+                                        over=None, under=None,
                                         model=DecisionTreeClassifier(),
                                         display_plot=True,
                                         title_plot='No title'):
     
-    # Identification des variables
-    feat_nunique = dfTrain.nunique()
-    numerical_feat = [x for x in dfTrain.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique >= 100].index))]
-    ordinal_feat = [x for x in dfTrain.select_dtypes(include=['float64','int64']).columns if (x not in [identifier,target]) & (x in list(feat_nunique[feat_nunique < 100].index))]
-    categorical_feat = [x for x in dfTrain.select_dtypes(include=['object', 'bool']).columns if x not in [identifier,target]]
-    
+
     # Pipeline de transformation et de modélisation
     pipeline = getPipeline(
                             dfTrain,
@@ -377,6 +405,7 @@ def evaluateRocPrCurvesOnTrainTestSet(
                             minmax=minmax, standard=standard, robust=robust, noScale=noScale,
                             defaultEncoder=defaultEncoder,
                             ordinal=ordinal, onehot=onehot,
+                            over=over, under=under,
                             model=model)
 
     features = list(dfTrain.columns).copy()
@@ -406,20 +435,22 @@ def evaluateRocPrCurvesOnTrainTestSet(
 # test ratio
 def evaluateRocPrCurves(
                     df1,
+                    dfTest=None,                
                     target='', 
                     identifier='', 
                     ordinalThreshold=100,
                     meanImputer=[], iterativeImputer=[], mostFrequentImputer=[], constantImputer={},
                     defaultNumImputer=SimpleImputer(strategy='mean'), 
                     defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
-                    defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
+                    defaultCatImputer=SimpleImputer(strategy='most_frequent'), 
                     power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
                     defaultScaler=MinMaxScaler(), 
                     minmax=[], standard=[], robust=[],  noScale=[],
                     defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
                     ordinal=[], onehot=[],
+                    over=None, under=None,
                     model=DecisionTreeClassifier(), 
-                    cv = 3,
+                    cv=10,
                     random_state=None,
                     seed=0,
                     test_size=0.2,
@@ -442,7 +473,7 @@ def evaluateRocPrCurves(
     
     # Si aucun random state n'est passé en paramètre alors on est en cross validation
     # sinon on est en train-test split avec le random state passé en paramètre
-    if random_state == None:
+    if (random_state == None) & (dfTest == None):
         
         if type(seed) != list:
             seed = [seed]
@@ -469,7 +500,6 @@ def evaluateRocPrCurves(
                     if j != i:
                         lstTrainDf.append(lstDf[j])
                 dfTrain = pd.concat(lstTrainDf)  
-
                 res = evaluateRocPrCurvesOnTrainTestSet(
                                     dfTrain,
                                     dfTest,
@@ -479,6 +509,7 @@ def evaluateRocPrCurves(
                                     defaultNumImputer=defaultNumImputer, 
                                     defaultOrdImputer=defaultOrdImputer, 
                                     defaultCatImputer=defaultCatImputer, 
+                                    meanImputer=meanImputer, iterativeImputer=iterativeImputer, mostFrequentImputer=mostFrequentImputer, constantImputer=constantImputer,
                                     power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
                                     defaultScaler=defaultScaler, 
                                     minmax=minmax, 
@@ -486,11 +517,10 @@ def evaluateRocPrCurves(
                                     robust=robust, 
                                     defaultEncoder=defaultEncoder,
                                     ordinal=ordinal, 
-                                    onehot=onehot,
+                                    onehot=onehot,over=over, under=under,
                                     model=model, 
                                     display_plot=display_plot,
                                     title_plot=title_plot)
-
                 # Conservation des métriques
                 roc_auc_train_list.append(res[0])
                 pr_auc_train_list.append(res[1])
@@ -508,8 +538,15 @@ def evaluateRocPrCurves(
 
     else:
         cv = 1
-        # On fait un train-test split
-        dfTrain, dfTest = train_test_split(df, test_size=test_size, random_state=random_state)   
+        if random_state != None:
+            # On fait un train-test split   
+            if dfTest == None:     
+                dfTrain, dfTest = train_test_split(df, test_size=test_size, random_state=random_state)        
+            else:     
+                dfTrain, _ = train_test_split(df, test_size=test_size, random_state=random_state)                
+        else:
+            # Ici il faut que dfTest soit passé en paramètre, sinon ça va planter    
+            dfTrain = df
         res = evaluateRocPrCurvesOnTrainTestSet(
                             dfTrain,
                             dfTest,
@@ -527,6 +564,7 @@ def evaluateRocPrCurves(
                             defaultEncoder=defaultEncoder,
                             ordinal=ordinal, 
                             onehot=onehot,
+                            over=over, under=under,
                             model=model, 
                             display_plot=display_plot,
                             title_plot=title_plot)        
@@ -594,6 +632,183 @@ def evaluateRocPrCurves(
                         })
 
 
+
+
+
+def q75(serie):
+    return serie.quantile(q=0.75)
+
+
+def q25(serie):
+    return serie.quantile(q=0.25)
+
+
+def displayPlotParamOptim(results, show_quantile=True):
+
+    dfMetrics = pd.concat(results)
+    dfMetrics = dfMetrics.rename(columns={'pr_train_auc': 'pr_auc_train'})
+    dfMetrics['model'] = dfMetrics.apply(lambda x: x.title.split('|')[0], axis=1)
+    dfMetrics['parameter'] = dfMetrics.apply(lambda x: x.title.split('|')[-1].split('=')[0], axis=1)
+    dfMetrics['value'] = dfMetrics.apply(lambda x: float(x.title.split('|')[-1].split('=')[1]), axis=1)
+
+    dfModelParam = dfMetrics[['model','parameter']].drop_duplicates()
+
+    for index, row in dfModelParam.iterrows():
+
+        m = dfMetrics[(dfMetrics.model == row.model) & (dfMetrics.parameter == row.parameter)]
+        m_means = m.groupby('value').agg({'roc_auc_train':'mean','pr_auc_train':'mean','roc_auc_test':'mean','pr_auc_test':'mean','time_train':'mean','time_pred':'mean'}).reset_index(drop=False)
+        if show_quantile == True:
+            m_q75 = m.groupby('value').agg({'roc_auc_train':q75,'pr_auc_train':q75,'roc_auc_test':q75,'pr_auc_test':q75,'time_train':q75,'time_pred':q75}).reset_index(drop=False)
+            m_q25 = m.groupby('value').agg({'roc_auc_train':q25,'pr_auc_train':q25,'roc_auc_test':q25,'pr_auc_test':q25,'time_train':q25,'time_pred':q25}).reset_index(drop=False)
+
+        size = 1
+        nbPlot = 3
+        fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
+
+        sub = fig.add_subplot(1,nbPlot,1)
+        plt.xlabel(row.parameter)
+        plt.ylabel('AUC')
+        plt.title('ROC AUC')
+        #plt.axis('tight')
+        plt.grid(True)
+        plt.scatter(m.value.values, m.roc_auc_train.values, alpha=1, label = 'train')
+        if show_quantile == True:
+            plt.plot(m_means.value, m_means.roc_auc_train, color='blue')
+            #plt.plot(m_q75.value, m_q75.roc_auc_train, color='grey')
+            #plt.plot(m_q25.value, m_q25.roc_auc_train, color='grey')
+        else:
+            plt.plot(m_means.value, m_means.roc_auc_train, color='grey')
+        plt.scatter(m.value.values, m.roc_auc_test.values, alpha=1, label = 'test')
+        if show_quantile == True:
+            plt.plot(m_means.value, m_means.roc_auc_test, color='orange')
+            plt.plot(m_q75.value, m_q75.roc_auc_test, color='orange', linestyle='dotted')
+            plt.plot(m_q25.value, m_q25.roc_auc_test, color='orange', linestyle='dotted')
+        else:
+            plt.plot(m_means.value, m_means.roc_auc_test, color='grey')
+        plt.legend()
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle('ROC AUC')
+
+        sub = fig.add_subplot(1,nbPlot,2)
+        plt.xlabel(row.parameter)
+        plt.ylabel('AUC')
+        plt.title('PR AUC')
+        #plt.axis('tight')
+        plt.grid(True)
+        plt.scatter(m.value.values, m.pr_auc_train.values, alpha=1, label = 'train')
+        if show_quantile == True:
+            plt.plot(m_means.value, m_means.pr_auc_train, color='blue')
+            #plt.plot(m_q75.value, m_q75.pr_auc_train, color='grey')
+            #plt.plot(m_q25.value, m_q25.pr_auc_train, color='grey')     
+        else:
+            plt.plot(m_means.value, m_means.pr_auc_train, color='grey')
+        plt.scatter(m.value.values, m.pr_auc_test.values, alpha=1, label = 'test')
+        if show_quantile == True:
+            plt.plot(m_means.value, m_means.pr_auc_test, color='orange')
+            plt.plot(m_q75.value, m_q75.pr_auc_test, color='orange', linestyle='dotted')
+            plt.plot(m_q25.value, m_q25.pr_auc_test, color='orange', linestyle='dotted') 
+        else:
+            plt.plot(m_means.value, m_means.pr_auc_test, color='grey')
+        plt.legend()
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle('PR AUC')
+        
+        sub = fig.add_subplot(1,nbPlot,3)
+        plt.xlabel(row.parameter)
+        plt.ylabel('duration')
+        plt.title('Training and predicting duration')
+        #plt.axis('tight')
+        plt.grid(True)
+        plt.scatter(m.value.values, m.time_train.values, alpha=1, label = 'training')
+        plt.plot(m_means.value, m_means.time_train, color='blue')
+        plt.scatter(m.value.values, m.time_pred.values, alpha=1, label = 'predicting')
+        plt.plot(m_means.value, m_means.time_pred, color='orange')
+        plt.legend()
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle('Training and predicting duration')
+
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle("{} - {}".format(row.model, row.parameter))
+
+        plt.show()
+
+
+
+
+
+
+def displayPlotParamOptimBox(results):
+
+    dfMetrics = pd.concat(results)
+    dfMetrics = dfMetrics.rename(columns={'pr_train_auc': 'pr_auc_train'})
+    dfMetrics['model'] = dfMetrics.apply(lambda x: x.title.split('|')[0], axis=1)
+    dfMetrics['parameter'] = dfMetrics.apply(lambda x: x.title.split('|')[-1].split('=')[0], axis=1)
+    dfMetrics['value'] = dfMetrics.apply(lambda x: x.title.split('|')[-1].split('=')[1], axis=1)
+
+    dfModelParam = dfMetrics[['model','parameter']].drop_duplicates()
+
+    for index, row in dfModelParam.iterrows():
+
+        x_labels = []
+        y_roc_auc_train = []
+        y_roc_auc_test = []
+        y_pr_auc_train = []
+        y_pr_auc_test = []
+        y_time_train = []
+        y_time_pred = []
+        
+        m = dfMetrics[(dfMetrics.model == row.model) & (dfMetrics.parameter == row.parameter)]
+
+        for val in m['value'].unique():
+            x_labels.append(val)
+            y_roc_auc_train.append(m[m['value']==val].roc_auc_train)
+            y_roc_auc_test.append(m[m['value']==val].roc_auc_test)
+            y_pr_auc_train.append(m[m['value']==val].pr_auc_train)
+            y_pr_auc_test.append(m[m['value']==val].pr_auc_test)
+            y_time_train.append(m[m['value']==val].time_train)
+            y_time_pred.append(m[m['value']==val].time_pred)
+
+        size = 1
+        nbPlot = 3
+        fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
+
+        sub = fig.add_subplot(1,nbPlot,1)
+        plt.xlabel(row.parameter)
+        plt.ylabel('AUC')
+        plt.title('ROC AUC')
+        #plt.axis('tight')
+        plt.grid(True)
+        plt.boxplot(y_roc_auc_train, labels=x_labels, showmeans=True)
+        plt.boxplot(y_roc_auc_test, labels=x_labels, showmeans=True)
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle('ROC AUC')
+
+        sub = fig.add_subplot(1,nbPlot,2)
+        plt.xlabel(row.parameter)
+        plt.ylabel('AUC')
+        plt.title('PR AUC')
+        #plt.axis('tight')
+        plt.grid(True)
+        plt.boxplot(y_pr_auc_train, labels=x_labels, showmeans=True)
+        plt.boxplot(y_pr_auc_test, labels=x_labels, showmeans=True)
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle('PR AUC')
+        
+        sub = fig.add_subplot(1,nbPlot,3)
+        plt.xlabel(row.parameter)
+        plt.ylabel('duration')
+        plt.title('Training and predicting duration')
+        #plt.axis('tight')
+        plt.grid(True)
+        plt.boxplot(y_time_train, labels=x_labels, showmeans=True)
+        plt.boxplot(y_time_pred, labels=x_labels, showmeans=True)
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle('Training and predicting duration')
+
+        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
+        plt.suptitle("{} - {}".format(row.model, row.parameter))
+
+        plt.show()
 
 
 
@@ -2373,17 +2588,17 @@ class myDf(pd.DataFrame):
             #plt.axis("off")
             #plt.text(0,1,"Mesures de position")
             print("Mesures de position")
-            print(" - Moyenne: " + str(round(mean,2)))
-            print(" - Médiane: " + str(round(median,2)))
+            print(" - Moyenne: " + str(round(mean,5)))
+            print(" - Médiane: " + str(round(median,5)))
             print("Mesures de dispertion")
-            print(" - Ecart type: " + str(round(std,2)))
-            print(" - Min: " + str(round(mini,2)))
-            print(" - Q25: " + str(round(q25,2)))
-            print(" - Q75: " + str(round(q75,2)))
-            print(" - Max: " + str(round(maxi,2)))
+            print(" - Ecart type: " + str(round(std,5)))
+            print(" - Min: " + str(round(mini,5)))
+            print(" - Q25: " + str(round(q25,5)))
+            print(" - Q75: " + str(round(q75,5)))
+            print(" - Max: " + str(round(maxi,5)))
             print("Mesures de forme")
-            print(" - Skewness (asymétrie): " + str(round(skewness,2)))      
-            print(" - Kurtosis (applatissement): " + str(round(kurtosis,2)))
+            print(" - Skewness (asymétrie): " + str(round(skewness,3)))      
+            print(" - Kurtosis (applatissement): " + str(round(kurtosis,3)))
         
         
         
