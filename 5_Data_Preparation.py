@@ -71,15 +71,20 @@ from sklearn.metrics import r2_score
 from sklearn.preprocessing import PowerTransformer
 
 
+
+
 t1 = time.time()
 
 print(datetime.datetime.now())
+
+
+train_or_test = "train"
 
 #########################################
 # CHARGEMENT DES FICHIERS
 #########################################
 
-dfApplication = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/application_test.csv',",")
+dfApplication = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/application_' + train_or_test + '.csv',",")
 dfBureau = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/bureau.csv',",")
 dfBureauBalance = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/bureau_balance.csv',",")
 dfPreviousApplication = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/previous_application.csv',",")
@@ -253,6 +258,14 @@ t2 = time.time()
 print("{} - {} - missing default".format(datetime.datetime.now(), t2-t1))
 t1 = t2
 
+if False:
+    del dfApplicationDefault['EXT_SOURCE_1']
+    del dfApplicationDefault['EXT_SOURCE_2']
+    del dfApplicationDefault['EXT_SOURCE_3']
+
+
+
+
 
 
 
@@ -265,7 +278,7 @@ print(datetime.datetime.now())
 # CHARGEMENT DES FICHIERS
 #########################################
 
-dfApplication = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/application_test.csv',",")
+dfApplication = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/application_' + train_or_test + '.csv',",")
 dfBureau = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/bureau.csv',",")
 dfBureauBalance = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/bureau_balance.csv',",")
 dfPreviousApplication = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/previous_application.csv',",")
@@ -807,7 +820,6 @@ del pos_cash_dpd_def
 del pos_cash_month_bal
 
 
-
 t2 = time.time()
 print("{} - {} - POSCASH DPD".format(datetime.datetime.now(), t2-t1))
 t1 = t2
@@ -1049,25 +1061,12 @@ del dfApplication ['SK_ID_BUREAU']
 
 
 
-
-
-
-
 for col in dfApplicationDefault.columns:
     if col not in dfApplication.columns:
         dfApplication = dfApplication.merge(dfApplicationDefault[['SK_ID_CURR',col]])
 
-
-dfApplication = load(open('dfApplicationDash.pkl','rb'))
-imp = load(open('imp.pkl','rb'))
-pipeline = load(open('pipeline.pkl','rb'))
-dfApplication['SCORE'] = pipeline.predict_proba(dfApplication[imp]).T[1]
-cols = ['SK_ID_CURR','SCORE']
-cols.extend(imp)
-dfApplication = dfApplication[cols]
-
-dump(dfApplication, open('dfApplicationDash.pkl','wb'))
-
-
-
+if train_or_test == 'train':
+    dump (dfApplication, open('dfApplicationTrain.pkl','rb'))
+else:
+    dump (dfApplication, open('dfApplicationTest','rb'))
 
