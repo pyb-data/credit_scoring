@@ -1,0 +1,274 @@
+from pickle import load
+from pickle import dump
+from myTools import *
+import datetime
+
+from lightgbm import LGBMClassifier
+
+
+dfApplication = load(open('dfApplicationTrain.pkl','rb'))
+
+
+cols = ['SK_ID_CURR',
+ 'TARGET',
+ 'EXT_SOURCE_1',
+ 'EXT_SOURCE_3',
+ 'EXT_SOURCE_2',
+ 'DAYS_BIRTH',
+ 'AMT_CREDIT',
+ 'POSCASH_CNT_INSTALMENT_FUTURE',
+ 'INSTALPAYMT_DIFF_DAYS_INSTALLMENT_PAYMENT_NEG',
+ 'AMT_GOODS_PRICE',
+ 'AMT_ANNUITY',
+ 'PREVBURO_LAST_DAYS_DECISION',
+ 'DAYS_EMPLOYED',
+ 'POSCASH_CNT_INSTALMENT_FUTURE_LEFT',
+ 'POSCASH_CNT_INSTALMENT_FUTURE_DONE',
+ 'DAYS_ID_PUBLISH',
+ 'BURO_AMT_CREDIT_SUM',
+ 'PREV_AMT_ANNUITY',
+ 'BURO_AMT_CREDIT_ACTIVE',
+ 'CODE_GENDER',
+ 'BURO_AMT_CREDIT_MAX_OVERDUE',
+ 'DAYS_REGISTRATION',
+ 'INSTALPAYMT_DIFF_AMT_INSTALLMENT_PAYMENT_POS',
+ 'BURO_AMT_CREDIT_SUM_DEBT',
+ 'BURO_AMT_CREDIT_COMPLETED',
+ 'RATIO_ANNUITY_INCOME',
+ 'PREV_AMT_COMPLETED',
+ 'INSTALPAYMT_DIFF_DAYS_INSTALLMENT_PAYMENT_POS',
+ 'PREVBURO_DAYS_DIFF',
+ 'POSCASH_SK_DPD_DEF',
+ 'PREV_NAME_YIELD_GROUP_ORD',
+ 'ORGANIZATION_TYPE',
+ 'CREDCARD_CNT_DRAWINGS_ATM_CURRENT',
+ 'PREV_AMT_CREDIT_ACTIVE_REIMBURSED_INDIC',
+ 'NAME_FAMILY_STATUS',
+ 'NB_DOC_FURNISHED',
+ 'BURO_DAYS_CREDIT',
+ 'PREV_AMT_CREDIT_ACTIVE',
+ 'PREV_AMT_DOWN_PAYMENT',
+ 'OCCUPATION_TYPE',
+ 'DAYS_LAST_PHONE_CHANGE',
+ 'BURO_AMT_CREDIT_SUM_LIMIT',
+ 'NAME_EDUCATION_TYPE',
+ 'INSTALPAYMT_DIFF_AMT_INSTALLMENT_PAYMENT_NEG',
+ 'CREDCARD_CNT_DRAWINGS_CURRENT',
+ 'CREDCARD_MONTHS_BALANCE',
+ 'REGION_RATING_CLIENT_W_CITY',
+ 'NAME_INCOME_TYPE',
+ 'BURO_AMT_CREDIT_SUM_OVERDUE',
+ 'PREV_AMT_ANNUITY_ACTIVE',
+ 'INSTALPAYMT_AMT_INSTALMENT',
+ 'REGION_POPULATION_RELATIVE',
+ 'OWN_CAR_AGE',
+ 'DEF_30_CNT_SOCIAL_CIRCLE',
+ 'PREV_CODE_REJECT_REASON',
+ 'FLAG_DOCUMENT_3',
+ 'FLAG_OWN_CAR',
+ 'PREV_HOUR_APPR_PROCESS_START',
+ 'AMT_INCOME_TOTAL',
+ 'PREV_SELLERPLACE_AREA',
+ 'CREDCARD_AMT_DRAWINGS_ATM_CURRENT',
+ 'CREDCARD_AMT_BALANCE',
+ 'PREV_NFLAG_INSURED_ON_APPROVAL',
+ 'BURO_DAYS_CREDIT_UPDATE',
+ 'INSTALPAYMT_AMT_PAYMENT',
+ 'CREDCARD_AMT_PAYMENT_TOTAL_CURRENT',
+ 'PREV_DAYS_DECISION',
+ 'PREV_NB_REFUSED',
+ 'WEEKDAY_APPR_PROCESS_START',
+ 'CREDCARD_SK_DPD_DEF',
+ 'PREV_DAYS_TERMINATION',
+ 'CREDCARD_AMT_PAYMENT_CURRENT',
+ 'BURO_DAYS_CREDIT_ENDDATE',
+ 'CREDCARD_AMT_RECIVABLE',
+ 'PREV_PRODUCT_COMBINATION',
+ 'YEARS_BEGINEXPLUATATION_MEDI',
+ 'PREV_NAME_SELLER_INDUSTRY',
+ 'INSTALPAYMT_DAYS_ENTRY_PAYMENT',
+ 'PREV_DAYS_LAST_DUE_1ST_VERSION',
+ 'REG_CITY_NOT_LIVE_CITY',
+ 'AMT_REQ_CREDIT_BUREAU_QRT',
+ 'PREV_NAME_CONTRACT_STATUS',
+ 'FLAG_DOCUMENT_11',
+ 'PREV_NAME_TYPE_SUITE',
+ 'INSTALPAYMT_DAYS_INSTALMENT',
+ 'PREV_RATE_DOWN_PAYMENT',
+ 'PREV_CNT_PAYMENT',
+ 'FLAG_WORK_PHONE',
+ 'YEARS_BEGINEXPLUATATION_MODE',
+ 'POSCASH_CNT_INSTALMENT',
+ 'CREDCARD_AMT_CREDIT_LIMIT_ACTUAL',
+ 'PREV_NAME_CLIENT_TYPE',
+ 'CREDCARD_CNT_DRAWINGS_POS_CURRENT',
+ 'ELEVATORS_AVG',
+ 'DEF_60_CNT_SOCIAL_CIRCLE',
+ 'OBS_60_CNT_SOCIAL_CIRCLE',
+ 'PREV_NAME_CASH_LOAN_PURPOSE',
+ 'BUROBAL_MONTHS_BALANCE',
+ 'PREV_LAST_NAME_CONTRACT_STATUS',
+ 'CREDCARD_AMT_DRAWINGS_CURRENT',
+ 'CREDCARD_AMT_DRAWINGS_OTHER_CURRENT',
+ 'CREDCARD_CNT_INSTALMENT_MATURE_CUM',
+ 'FLAG_DOCUMENT_18',
+ 'PREV_DAYS_LAST_DUE',
+ 'PREV_AMT_GOODS_PRICE',
+ 'AMT_REQ_CREDIT_BUREAU_DAY',
+ 'NONLIVINGAPARTMENTS_MEDI',
+ 'YEARS_BEGINEXPLUATATION_AVG',
+ 'COMMONAREA_MEDI',
+ 'LANDAREA_MODE',
+ 'LIVINGAPARTMENTS_MODE',
+ 'CREDCARD_AMT_TOTAL_RECEIVABLE',
+ 'PREV_NAME_GOODS_CATEGORY',
+ 'PREV_NAME_PORTFOLIO',
+ 'LIVINGAPARTMENTS_AVG',
+ 'CREDCARD_AMT_DRAWINGS_POS_CURRENT',
+ 'PREV_NB_COMPLETED',
+ 'LIVINGAREA_AVG',
+ 'PREV_AMT_APPLICATION',
+ 'NONLIVINGAREA_MODE',
+ 'HOUR_APPR_PROCESS_START',
+ 'PREV_AMT_CREDIT',
+ 'ENTRANCES_AVG',
+ 'CNT_CHILDREN',
+ 'NONLIVINGAPARTMENTS_AVG',
+ 'COMMONAREA_MODE',
+ 'NONLIVINGAREA_AVG',
+ 'APARTMENTS_MODE',
+ 'AMT_REQ_CREDIT_BUREAU_YEAR',
+ 'NAME_HOUSING_TYPE',
+ 'NAME_TYPE_SUITE',
+ 'ENTRANCES_MEDI',
+ 'BUROBAL_SK_DPD',
+ 'PREV_NAME_CONTRACT_TYPE',
+ 'PREV_WEEKDAY_APPR_PROCESS_START',
+ 'BURO_CREDIT_TYPE',
+ 'NONLIVINGAPARTMENTS_MODE',
+ 'FLOORSMAX_AVG',
+ 'FLOORSMIN_AVG',
+ 'BURO_DAYS_ENDDATE_FACT',
+ 'FLOORSMIN_MODE',
+ 'COMMONAREA_AVG',
+ 'LIVINGAREA_MODE',
+ 'BURO_AMT_ANNUITY',
+ 'POSCASH_SK_DPD',
+ 'BURO_CREDIT_ACTIVE',
+ 'BASEMENTAREA_AVG',
+ 'POSCASH_MONTHS_BALANCE',
+ 'APARTMENTS_AVG',
+ 'WALLSMATERIAL_MODE',
+ 'CREDCARD_AMT_RECEIVABLE_PRINCIPAL',
+ 'TOTALAREA_MODE',
+ 'FLAG_OWN_REALTY',
+ 'LIVINGAPARTMENTS_MEDI']
+
+
+dfApplication = dfApplication[cols]
+
+
+kbins50 = ['AMT_INCOME_TOTAL',
+ 'APARTMENTS_AVG',
+ 'COMMONAREA_AVG',
+ 'LIVINGAREA_AVG',
+ 'LANDAREA_MODE',
+ 'NONLIVINGAREA_MODE',
+ 'PREV_AMT_CREDIT_ACTIVE_REIMBURSED_INDIC',
+ 'INSTALPAYMT_DIFF_AMT_INSTALLMENT_PAYMENT_POS',
+ 'PREV_AMT_APPLICATION',
+ 'PREV_AMT_GOODS_PRICE',
+ 'PREV_DAYS_LAST_DUE',
+ 'PREV_DAYS_TERMINATION',
+ 'CREDCARD_AMT_DRAWINGS_CURRENT',
+ 'CREDCARD_AMT_RECEIVABLE_PRINCIPAL',
+ 'CREDCARD_CNT_DRAWINGS_ATM_CURRENT',
+ 'CREDCARD_CNT_DRAWINGS_CURRENT',
+ 'CREDCARD_CNT_DRAWINGS_POS_CURRENT',
+ 'POSCASH_MONTHS_BALANCE',
+ 'INSTALPAYMT_DAYS_ENTRY_PAYMENT',
+ 'INSTALPAYMT_AMT_INSTALMENT',
+ 'INSTALPAYMT_AMT_PAYMENT']
+
+
+model = LGBMClassifier(max_depth=7, learning_rate=0.125, num_leaves=8, min_child_samples=300, subsample_for_bin=25000, n_estimators=300, n_jobs=-1)
+
+
+def imputeScaleAndEncode(df1, 
+                    target='', 
+                    identifier=''):
+    
+    df = df1.copy()
+    
+    if type(target) == str:
+        target = [target]
+    if type(identifier) == str:
+        identifier = [identifier]
+    
+    colToExclude = target
+    colToExclude.extend(identifier)
+    
+    for col in df.columns:
+        if col not in colToExclude:
+            if df[col].dtypes == 'object':
+                df[col] = df[col].replace(np.nan, 'missing')
+                df[col] = OrdinalEncoder().fit_transform(df[[col]])
+            elif df[col].dtype in ['int64','float64']:
+                df[col] = SimpleImputer(strategy='mean').fit_transform(df[[col]])
+                df[col] = MinMaxScaler().fit_transform(df[[col]])  
+                
+    return df
+
+imp = featureImportance(imputeScaleAndEncode(dfApplication, target='TARGET', identifier='SK_ID_CURR'), target='TARGET', identifier='SK_ID_CURR', model=model)
+
+
+dump(list(imp.feature), open('imp.pkl','wb'))
+imp = load(open('imp.pkl','rb'))
+cols = ['SK_ID_CURR','TARGET']
+cols.extend(imp)
+dfApplication = dfApplication[cols]
+
+
+
+pipeline = getPipeline(
+                        dfApplication,
+                        target='TARGET', 
+                        identifier='SK_ID_CURR', 
+                        kbins50=kbins50,
+                        model=model)
+
+
+
+y = dfApplication['TARGET']
+del dfApplication['SK_ID_CURR']
+del dfApplication['TARGET']
+
+
+
+pipeline.fit(dfApplication,y)
+
+
+
+dump(pipeline, open('pipeline.pkl','wb'))
+
+
+#############################################
+# Seuils pour le dashboard
+#############################################
+
+pred = pipeline.predict_proba(dfApplication)
+pred = pred.T[1]
+
+
+
+prct_default_seuil = []
+seuil = np.arange(1000) /1000
+for s in seuil:
+    prct_default_seuil.append(0.0+len([p for p in pred if p > s]) / pred.shape[0])
+
+
+
+seuil_stat = pd.DataFrame({'seuil':seuil,'prct_default_seuil':prct_default_seuil})
+
+
+dump(seuil_stat, open('seuil_stat.pkl','wb'))
