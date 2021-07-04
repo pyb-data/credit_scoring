@@ -1,6 +1,11 @@
 
 import streamlit as st
+from pickle import load
+
+imp = load(open('imp.pkl','rb'))
 
 # Add title to the page.
-st.title("Text summarization")
+st.title("Importance")
+
+st.write(imp)
 
