@@ -6,8 +6,7 @@ import plotly.graph_objects as go
 
 
 imp = load(open('imp.pkl','rb'))
-df = load(open('imp.pkl','rb'))
-df = load(open('toto.pkl','rb'))
+df = load(open('dfTest.pkl','rb'))
 
 # Add title to the page.
 st.title("Importance")
