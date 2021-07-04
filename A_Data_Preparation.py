@@ -78,7 +78,7 @@ t1 = time.time()
 print(datetime.datetime.now())
 
 
-train_or_test = "train"
+train_or_test = "test"
 
 #########################################
 # CHARGEMENT DES FICHIERS
@@ -1066,7 +1066,13 @@ for col in dfApplicationDefault.columns:
         dfApplication = dfApplication.merge(dfApplicationDefault[['SK_ID_CURR',col]])
 
 if train_or_test == 'train':
-    dump (dfApplication, open('dfApplicationTrain.pkl','rb'))
+    dump(dfApplication, open('dfApplicationTrain.pkl','wb'))
 else:
-    dump (dfApplication, open('dfApplicationDash','rb'))
+    imp = load(open('imp.pkl','rb'))
+    pipeline = load(open('pipeline.pkl','rb'))
+    dfApplication['SCORE'] = pipeline.predict_proba(dfApplication[imp]).T[1]
+    cols = ['SK_ID_CURR','SCORE']
+    cols.extend(imp)
+    dfApplication = dfApplication[cols]
+    dump(dfApplication, open('dfApplicationDash.pkl','wb'))
 
