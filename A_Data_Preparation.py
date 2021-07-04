@@ -78,6 +78,9 @@ t1 = time.time()
 print(datetime.datetime.now())
 
 
+#########################################
+# Data for training or dashboard
+#########################################
 train_or_test = "test"
 
 #########################################
