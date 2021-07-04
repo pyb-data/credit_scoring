@@ -38,11 +38,11 @@ seuil_optimal = 20.200000000000003
 st.sidebar.title("Sélection du client")
 st.sidebar.markdown("Choisissez l'identifiant du client:")
 
+
+
+chart_visual = st.sidebar.selectbox('SK_ID_CURR',df.SK_ID_CURR)
+
 if False:
-
-    chart_visual = st.sidebar.selectbox('SK_ID_CURR',df.SK_ID_CURR)
-
-
 
     #title1 = '<p style="font-family:Courier; color:Blue; font-size: 20px;">Niveau de risque de défaut</p>'
     title1 = '<p style="font-size: 30px;">Niveau de risque de défaut</p>'
