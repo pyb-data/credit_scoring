@@ -12,8 +12,18 @@ import plotly.graph_objects as go
 
 
 
-df = load(open('dfApplicationDash.pkl','rb'))
-seuils = load(open('seuil_stat.pkl','rb'))
+#df = load(open('dfApplicationDash.pkl','rb'))
+#seuils = load(open('seuil_stat.pkl','rb'))
+
+seuil_stat_col = load(open('seuil_stat_col.pkl','rb'))
+seuil_stat_value = load(open('seuil_stat_value.pkl','rb'))
+dfApplicationDash_col = load(open('dfApplicationDash_col.pkl','rb'))
+dfApplicationDash_value = load(open('dfApplicationDash_value.pkl','rb'))
+
+seuil_stat = pd.DataFrame(seuil_stat_value, columns = seuil_stat_col)
+df = pd.DataFrame(dfApplicationDash_value, columns = dfApplicationDash_col)
+
+
 seuils['score'] = seuils['seuil']
 seuils['pourcentage de défault'] = seuils['prct_default_seuil']
 
