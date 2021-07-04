@@ -42,16 +42,17 @@ st.sidebar.markdown("Choisissez l'identifiant du client:")
 
 chart_visual = st.sidebar.selectbox('SK_ID_CURR',df.SK_ID_CURR)
 
+
+
+#title1 = '<p style="font-family:Courier; color:Blue; font-size: 20px;">Niveau de risque de défaut</p>'
+title1 = '<p style="font-size: 30px;">Niveau de risque de défaut</p>'
+st.markdown(title1, unsafe_allow_html=True)
+
+seuil = st.slider("Selectionner le seuil de score (x100)", min_value=0.0, max_value=100.0, value=seuil_optimal, step=0.1)
+
+prct_default_seuil = seuils[seuils.seuil * 100 <= seuil].sort_values('seuil', ascending=False).head(1).prct_default_seuil.values[0]
+
 if False:
-
-    #title1 = '<p style="font-family:Courier; color:Blue; font-size: 20px;">Niveau de risque de défaut</p>'
-    title1 = '<p style="font-size: 30px;">Niveau de risque de défaut</p>'
-    st.markdown(title1, unsafe_allow_html=True)
-
-    seuil = st.slider("Selectionner le seuil de score (x100)", min_value=0.0, max_value=100.0, value=seuil_optimal, step=0.1)
-
-    prct_default_seuil = seuils[seuils.seuil * 100 <= seuil].sort_values('seuil', ascending=False).head(1).prct_default_seuil.values[0]
-
 
     selected = pd.DataFrame({'seuil':[seuil/100], 'prct_default_seuil':[prct_default_seuil]})
 
