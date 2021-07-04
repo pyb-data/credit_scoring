@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 
 
 imp = load(open('imp.pkl','rb'))
-df = load(open('dfApplicationDash.pkl','rb'))
+df = load(open('dfApplicationDashLight.pkl.pkl','rb'))
 
 # Add title to the page.
 st.title("Importance")
