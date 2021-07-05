@@ -52,7 +52,7 @@ seuil = st.slider("Selectionner le seuil de score (x100)", min_value=0.0, max_va
 
 prct_default_seuil = seuils[seuils.seuil * 100 <= seuil].sort_values('seuil', ascending=False).head(1).prct_default_seuil.values[0]
 
-if False:
+if True:
 
     selected = pd.DataFrame({'seuil':[seuil/100], 'prct_default_seuil':[prct_default_seuil]})
 
