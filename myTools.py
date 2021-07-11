@@ -1213,6 +1213,7 @@ def stats(df1, identifier='', target='', inclCol=[], whis=1.5, excludeDominantEx
 
 
 
+
 def distribRatio(df1, feature, target, bins=100):
     
     df = df1.copy()
@@ -1248,11 +1249,10 @@ def distribRatio(df1, feature, target, bins=100):
     else:
         last_bin_less_that_1000 = False   
 
-
     i=1
+    last_loop = False
     keepPreviousInf = False
     for interval in zip(l_inf, l_sup):
-
         if keepPreviousInf == False:
             borne_inf = interval[0]
 
@@ -1288,32 +1288,35 @@ def distribRatio(df1, feature, target, bins=100):
                 res_sup_incl.append(False)  
                 nb.append(nb_tot)
                 ratio.append(nb_pos / nb_tot)
-        else:       
-            if i < bins:                 
+        else:    
+            if (i == bins) | (last_bin_less_that_1000 and (i == bins-1)):     
+                tmp = df[(df[feature]>=borne_inf) & (df[feature]<=borne_sup)].copy()    
+
+            else:                 
                 tmp = df[(df[feature]>=borne_inf) & (df[feature]<borne_sup)].copy()
-            else:                  
-                tmp = df[(df[feature]>=borne_inf) & (df[feature]<=borne_sup)].copy()
-            nb_pos = tmp[(df[target]==1)].shape[0]
+            nb_pos = tmp[(tmp[target]==1)].shape[0]
             nb_tot = tmp.shape[0]
-            if (nb_tot < 1000) & (i < bins):
+            if (nb_tot < 1000) and (i < bins) and not (last_bin_less_that_1000 and (i == bins-1)):
                 keepPreviousInf = True
             else:
                 keepPreviousInf = False
                 res_inf.append(borne_inf)
                 res_sup.append(borne_sup)                     
-                if i < bins:
+                if (i == bins) | (last_bin_less_that_1000 and (i == bins-1)):   
                     res_inf_incl.append(True)            
-                    res_sup_incl.append(False)                   
+                    res_sup_incl.append(True)                   
                 else:
                     res_inf_incl.append(True)            
-                    res_sup_incl.append(True) 
+                    res_sup_incl.append(False) 
                 nb.append(nb_tot)
                 if (i == bins) & (nb_tot < 1000):
-                    print("hello")
+                    print("il ne faut pas passer par là!")
                     ratio.append(previous_ratio)
                 else:
                     ratio.append(nb_pos / nb_tot)
                 previous_ratio = nb_pos / nb_tot
+
+        
         i+=1
 
     return pd.DataFrame({'feature': [feature for x in ratio], 'borne_inf':res_inf, 'borne_inf_incl':res_inf_incl, 'borne_sup':res_sup, 'borne_sup_incl': res_sup_incl, 'nb_tot': nb, 'ratio': ratio}).drop_duplicates()
@@ -1338,11 +1341,13 @@ def distribImbalanced(df, feature, target, bins=100):
     f = plt.figure() 
     f.set_figwidth(8) 
     f.set_figheight(6) 
-        
+    
+    plt.rcParams.update({'font.size':10, 'font.style':'normal'})
     plt.plot((tmp.borne_inf + tmp.borne_sup) / 2, tmp.ratio)
     plt.plot([mini,maxi], [ratio_pos for x in [mini,maxi]],'g--')
     plt.xlabel('valeur feature')
     plt.ylabel('ratio classe positive')
+    plt.rcParams.update({'font.size':12, 'font.style':'normal'})
     plt.title('Distribution de la classe positive selon ' + feature)
     plt.grid(True)
     plt.show() 
