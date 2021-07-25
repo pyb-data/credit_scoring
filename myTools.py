@@ -826,7 +826,6 @@ def ColMode(df, feature, key):
     
     # Count par feature-key
     tmp = pd.DataFrame(tmp.groupby(cols).size(), columns=['COUNT']).reset_index(drop=False)
-    
     # Par key, valeurs les plus fréquentes de la feature
     tmpMaxCount = tmp.groupby(by=key).agg({'COUNT': 'max'}).reset_index(drop=False)
     colsMerge = key.copy()
@@ -850,20 +849,34 @@ def ColMode(df, feature, key):
     
     del tmp['COUNT']
     del tmp['POPULARITY']
+
+    # Au cas où il reste des doublons, on prend le premier qui vient
+    tmp = tmp.reset_index(drop=False)
+    tmp = tmp.rename(columns={'index':'indexation'})
+    key_merge = [x for x in key]
+    key_merge.append('indexation')
+    tmp2 = tmp.groupby(key).agg({'indexation':'min'}).reset_index(drop=False)
+    tmp2 = tmp2.rename(columns={'index':'indexation'})
+    tmp = tmp.merge(tmp2, left_on=key_merge, right_on=key_merge)[cols]
     
     return tmp
 
 def TransformUnique(df, key):
-    categorical_ix = df.select_dtypes(include=['object']).columns
+
+    if type(key) == str:
+        key = [key]
     dfCat = df[key].drop_duplicates()
+    categorical_ix = df.select_dtypes(include=['object']).columns
     for col in categorical_ix:
-        try:
-            dfCat = dfCat.merge(ColMode(df, col, key), left_on=key, right_on=key, how='left')
-        except:
-            print(col)
-    dfNum = df.groupby(key).mean().reset_index(drop=False)
-    dfUnique = dfCat.merge(dfNum, left_on=key, right_on=key, how='left')
-    return dfUnique
+        dfCat = dfCat.merge(ColMode(df, col, key), left_on=key, right_on=key, how='left')
+    try:
+        dfNum = df.groupby(key).mean().reset_index(drop=False)
+        dfUnique = dfCat.merge(dfNum, left_on=key, right_on=key, how='left')
+        return dfUnique
+    except:
+        return dfCat
+    
+    
 
 
 

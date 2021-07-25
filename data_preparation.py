@@ -98,6 +98,14 @@ def prepareData(train_or_test, only_default=False):
     dfCreditCardBalance = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/credit_card_balance.csv',",")
     dfInstallmentsPayments = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/installments_payments.csv',",")
 
+    dfBureau = dfBureau.loc[dfBureau.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfBureauBalance = dfBureauBalance.loc[dfBureauBalance.SK_ID_BUREAU.isin(dfBureau.SK_ID_BUREAU)]
+    dfPreviousApplication = dfPreviousApplication.loc[dfPreviousApplication.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfPosCashBalance = dfPosCashBalance.loc[dfPosCashBalance.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfCreditCardBalance = dfCreditCardBalance.loc[dfCreditCardBalance.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfInstallmentsPayments = dfInstallmentsPayments.loc[dfInstallmentsPayments.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+
+
     t2 = time.time()
     print("{} - {} - fichiers chargés".format(datetime.datetime.now(), t2-t1))
     t1 = t2
@@ -205,11 +213,11 @@ def prepareData(train_or_test, only_default=False):
     #########################################
     # SUPPRESSION DES COLONNES SANS INFORMATION
     #########################################
-
-    counts = dfApplication.nunique()
-    counts = counts[counts==1]
-    to_del = list(counts.index)
-    dfApplication.drop(to_del, axis=1, inplace=True)
+    if train_or_test == 'train':
+        counts = dfApplication.nunique()
+        counts = counts[counts==1]
+        to_del = list(counts.index)
+        dfApplication.drop(to_del, axis=1, inplace=True)
 
 
     t2 = time.time()
@@ -269,6 +277,14 @@ def prepareData(train_or_test, only_default=False):
     dfPosCashBalance = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/POS_CASH_balance.csv',",")
     dfCreditCardBalance = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/credit_card_balance.csv',",")
     dfInstallmentsPayments = pd.read_csv(os.getcwd() + '/Projet+Mise+en+prod+-+home-credit-default-risk/installments_payments.csv',",")
+
+    dfBureau = dfBureau.loc[dfBureau.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfBureauBalance = dfBureauBalance.loc[dfBureauBalance.SK_ID_BUREAU.isin(dfBureau.SK_ID_BUREAU)]
+    dfPreviousApplication = dfPreviousApplication.loc[dfPreviousApplication.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfPosCashBalance = dfPosCashBalance.loc[dfPosCashBalance.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfCreditCardBalance = dfCreditCardBalance.loc[dfCreditCardBalance.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+    dfInstallmentsPayments = dfInstallmentsPayments.loc[dfInstallmentsPayments.SK_ID_CURR.isin(dfApplication.SK_ID_CURR)]
+
 
     t2 = time.time()
     print("{} - {} - fichiers chargés".format(datetime.datetime.now(), t2-t1))
@@ -482,7 +498,7 @@ def prepareData(train_or_test, only_default=False):
     dfPreviousApplicationStatus = dfPreviousApplicationStatus.rename(columns={'NAME_CONTRACT_STATUS': 'LAST_NAME_CONTRACT_STATUS'})
     dfPreviousApplication = dfPreviousApplication.merge(dfPreviousApplicationStatus, left_on=['SK_ID_CURR','SK_ID_PREV'], right_on=['SK_ID_CURR','SK_ID_PREV'], how='left')
 
-    dfPreviousApplication['CONTRACT_STATUS'] = dfPreviousApplication.apply(lambda x: np.where(x.NAME_CONTRACT_STATUS=='Refused','Refused',np.where(x.LAST_NAME_CONTRACT_STATUS=='Completed','Completed','Active')), axis=1)
+    dfPreviousApplication['CONTRACT_STATUS'] = dfPreviousApplication.apply(lambda x: 'Refused' if x.NAME_CONTRACT_STATUS=='Refused' else 'Completed' if x.LAST_NAME_CONTRACT_STATUS=='Completed' else 'Active', axis=1)
     del dfPreviousApplication['NAME_CONTRACT_STATUS']
     del dfPreviousApplication['LAST_NAME_CONTRACT_STATUS']
 
@@ -900,6 +916,7 @@ def prepareData(train_or_test, only_default=False):
     #dfPreviousApplication = dfPreviousApplication.merge(dfInstallmentsPayments, left_on=['SK_ID_CURR','SK_ID_PREV'], right_on = ['SK_ID_CURR','SK_ID_PREV'], how='left')
     #dfBureau = dfBureau.merge(dfBureauBalance, left_on='SK_ID_BUREAU', right_on = 'SK_ID_BUREAU', how='left')
 
+    dump(dfPreviousApplication,open('dfPreviousApplication.pkl','wb'))
     dfPreviousApplication = TransformUnique(dfPreviousApplication, ['SK_ID_CURR'])
     dfBureau = TransformUnique(dfBureau, ['SK_ID_CURR'])
 
@@ -949,9 +966,18 @@ def prepareData(train_or_test, only_default=False):
             dfApplication[col] = dfApplication[col].replace(np.nan, 0)
 
     # Trop de valeurs manquantes
-    del dfApplication['PREV_RATE_INTEREST_PRIMARY']
-    del dfApplication['PREV_RATE_INTEREST_PRIVILEGED']
-    del dfApplication['PREV_NAME_CASH_LOAN_PURPOSE']
+    try:
+        del dfApplication['PREV_RATE_INTEREST_PRIMARY']
+    except:
+        pass
+    try:
+        del dfApplication['PREV_RATE_INTEREST_PRIVILEGED']
+    except:
+        pass
+    try:
+        del dfApplication['PREV_NAME_CASH_LOAN_PURPOSE']        
+    except:
+        pass
 
 
     t2 = time.time()
@@ -974,7 +1000,8 @@ def prepareData(train_or_test, only_default=False):
     # FUSION DES JEUX DE DONNEES PAR DEFAUT ET TRAVAILLE
     ##################################################################################
     ##################################################################################
-
+    dump(dfApplication,open('dfApplication.pkl','wb'))
+    dump(dfApplicationDefault,open('dfApplicationDefault.pkl','wb'))
     for col in dfApplicationDefault.columns:
         if col not in dfApplication.columns:
             dfApplication = dfApplication.merge(dfApplicationDefault[['SK_ID_CURR',col]])
