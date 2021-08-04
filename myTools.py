@@ -25,30 +25,24 @@ from sklearn import decomposition
 from sklearn import preprocessing
 
 
-import datetime
-
-
 
 import os
 import datetime
 import time
-import pandas as pd
 import warnings
 from collections import Counter
 import matplotlib.pyplot as plt
-from myTools import *
 
 from sklearn.model_selection import train_test_split
 
 import sklearn
 from sklearn.pipeline import Pipeline
-from matplotlib import pyplot as plt
 from sklearn.impute import KNNImputer
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
+
 
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.model_selection import cross_val_score
@@ -990,100 +984,6 @@ def featureAndPermutationImportance(df1, target, identifier, model=DecisionTreeC
     return imp
 
 
-def evaluateFeatureImportance(df1, 
-                                target='', 
-                                identifier='', 
-                                ordinalThreshold=100,
-                                defaultNumImputer=SimpleImputer(strategy='mean'), 
-                                defaultOrdImputer=SimpleImputer(strategy='most_frequent'), 
-                                defaultCatImputer=SimpleImputer(strategy='constant', fill_value='missing'), 
-                                meanImputer=[], iterativeImputer=[], mostFrequentImputer=[], constantImputer={},
-                                power=[], quantile=[], kbins10=[],kbins50=[], kbins100=[],
-                                defaultScaler=MinMaxScaler(), 
-                                minmax=[], standard=[], robust=[], noScale=[],
-                                defaultEncoder=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-10),
-                                ordinal=[], onehot=[],
-                                models=[RandomForestClassifier(), XGBClassifier()],
-                                label_models=['Rando forest','XGBoost'],
-                                show_plot=True,                              
-                                title_plot='No title'):
-
-    df = df1.copy()
-    
-    pipeline1 = getPipeline(
-                        df,
-                        target=target, 
-                        identifier=identifier, 
-                        ordinalThreshold=ordinalThreshold,
-                        defaultNumImputer=defaultNumImputer, 
-                        defaultOrdImputer=defaultOrdImputer, 
-                        defaultCatImputer=defaultCatImputer, 
-                        meanImputer=meanImputer, iterativeImputer=iterativeImputer,mostFrequentImputer=mostFrequentImputer, constantImputer=constantImputer,
-                        power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
-                        defaultScaler=defaultScaler, 
-                        minmax=minmax, standard=standard, robust=robust, noScale=noScale,
-                        defaultEncoder=defaultEncoder,
-                        ordinal=ordinal, onehot=onehot,
-                        model=models[0])
-    
-    pipeline2 = getPipeline(
-                        df,
-                        target=target, 
-                        identifier=identifier, 
-                        ordinalThreshold=ordinalThreshold,
-                        defaultNumImputer=defaultNumImputer, 
-                        defaultOrdImputer=defaultOrdImputer, 
-                        defaultCatImputer=defaultCatImputer, 
-                        meanImputer=meanImputer, iterativeImputer=iterativeImputer,mostFrequentImputer=mostFrequentImputer, constantImputer=constantImputer,
-                        power=power, quantile=quantile, kbins10=kbins10,kbins50=kbins50, kbins100=kbins100,
-                        defaultScaler=defaultScaler, 
-                        minmax=minmax, standard=standard, robust=robust, noScale=noScale,
-                        defaultEncoder=defaultEncoder,
-                        ordinal=ordinal, onehot=onehot,
-                        model=models[1])
-    
-    impRF = featureImportance(df, identifier=identifier, target=target, model=pipeline1)
-    impRF = impRF[['feature','impMedian','feat_imp_classement']].rename(columns={'impMedian':'RFFeatImp','feat_imp_classement':'RFClassement'})
-    impXG = featureImportance(df, identifier=identifier, target=target, model=pipeline2)
-    impXG = impXG[['feature','impMedian','feat_imp_classement']].rename(columns={'impMedian':'XGFeatImp','feat_imp_classement':'XGClassement'})
-    imp = impRF.merge(impXG, left_on='feature', right_on='feature')
-    
-    imp['bestClassement'] = imp.apply(lambda x: np.min([x.RFClassement, x.XGClassement]), axis=1)
-    imp['diffClassement'] = imp.apply(lambda x: np.abs(x.RFClassement - x.XGClassement), axis=1)
-    
-    imp = imp[['feature','RFFeatImp','XGFeatImp','RFClassement','XGClassement','bestClassement','diffClassement']]
-    imp = imp.sort_values('bestClassement')
-
-    if show_plot:
-        
-        size = 1
-        nbPlot = 2
-        fig = plt.figure(figsize=(size * (18 * nbPlot/2), size * 8))
-
-        sub = fig.add_subplot(1,nbPlot,1)
-        sub.set_title(label_models[0])
-        plt.bar([x for x in range(len(imp))], imp['RFFeatImp'].sort_values(ascending=False))
-        plt.axis('tight')
-        plt.xlabel('Features')
-        plt.ylabel('Importance')
-
-        sub = fig.add_subplot(1,nbPlot,2)
-        sub.set_title(label_models[1])
-        plt.bar([x for x in range(len(imp))], imp['XGFeatImp'].sort_values(ascending=False))
-        plt.axis('tight')
-        plt.xlabel('Features')
-        plt.ylabel('Importance')
-
-        plt.rcParams.update({'font.size':12, 'font.style':'normal'})
-        plt.suptitle(title_plot)
-
-
-        plt.show()
-        
-    return imp.sort_values('bestClassement')
-
-
-
 
 
 
@@ -1367,30 +1267,6 @@ def distribImbalanced(df, feature, target, bins=100):
 
 
 
-
-
-
-def getStatsAndImp(df):
-    
-    imp =  evaluateFeatureImportance(df, 
-                                    target='TARGET', 
-                                    identifier='SK_ID_CURR', 
-                                    minmax=[], 
-                                    standard=[], 
-                                    robust=[], 
-                                    ordinal=[], 
-                                    onehot=[],
-                                    models=[RFmodel, XGmodel],
-                                    label_models=['Rando forest','XGBoost'],
-                                    show_plot=False,                                     
-                                    title_plot='Merged dataset - Feature importance')
-
-    statFeat = stats(df, identifier='SK_ID_CURR',target='TARGET',excludeDominantExtrem=True)
-    statFeat = statFeat.merge(imp[['feature','bestClassement','RFClassement','XGClassement']], left_on='feature', right_on='feature')
-    statFeat = statFeat.sort_values('bestClassement')
-    statFeat = statFeat.reset_index(drop=True)
-    
-    return statFeat, imp
 
 
 

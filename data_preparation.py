@@ -2,73 +2,72 @@ import os
 import datetime
 import time
 import pandas as pd
-import warnings
-from collections import Counter
-import matplotlib.pyplot as plt
-from myTools import *
-
-from sklearn.model_selection import train_test_split
-
-import sklearn
-from sklearn.pipeline import Pipeline
-from matplotlib import pyplot as plt
-from sklearn.impute import KNNImputer
-from sklearn.impute import SimpleImputer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
-
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.model_selection import cross_val_score
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, f1_score
-from numpy import mean, std
-from sklearn.model_selection import cross_val_predict
-from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import RobustScaler
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import minmax_scale
-from sklearn.preprocessing import MaxAbsScaler
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import RobustScaler
-from sklearn.preprocessing import Normalizer
-from sklearn.preprocessing import QuantileTransformer
-from sklearn.preprocessing import PowerTransformer
-from sklearn.preprocessing import KBinsDiscretizer
-
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer
-
-from sklearn.inspection import permutation_importance
-
-from numpy import percentile
-
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy.stats as st
-
-pd.options.display.max_rows = 1000
-pd.options.display.max_columns = 999
-pd.set_option("max_colwidth", 200)
 
 
+def ColMode(df, feature, key):
+    
+    if type(key) == str:
+        key = [key]
+    if type(feature) == str:
+        feature = [feature]
+    
+    # dataframe de travail sans les nans et avec les colonnes feature et key
+    cols = feature.copy()
+    cols.extend(key)
+    tmp = df[cols].dropna()
+    
+    # Count par feature-key
+    tmp = pd.DataFrame(tmp.groupby(cols).size(), columns=['COUNT']).reset_index(drop=False)
+    # Par key, valeurs les plus fréquentes de la feature
+    tmpMaxCount = tmp.groupby(by=key).agg({'COUNT': 'max'}).reset_index(drop=False)
+    colsMerge = key.copy()
+    colsMerge.append('COUNT')
+    tmp = tmp.merge(tmpMaxCount, left_on=colsMerge, right_on=colsMerge)
 
-from pickle import dump
-from pickle import load
+    # A chaque valeur de feature on affecte un poids égal au nombre de fois que la valeur est prise dans la table
+    colsPopularity = feature.copy()
+    colsPopularity.append('COUNT')
+    popularity = tmp.groupby(feature).agg({'COUNT': 'sum'}).reset_index(drop=False)
+    colsPopularity = feature.copy()
+    colsPopularity.append('POPULARITY')
+    popularity.columns = colsPopularity
+    
+    tmp = tmp.merge(popularity)
+    
+    tmp2 = tmp.groupby(key).agg({'COUNT': 'max'}).reset_index(drop=False)
+    tmp = tmp.merge(tmp2)
+    tmp2 = tmp.groupby(key).agg({'POPULARITY': 'min'}).reset_index(drop=False)
+    tmp = tmp.merge(tmp2)
+    
+    del tmp['COUNT']
+    del tmp['POPULARITY']
 
-from sklearn.metrics import r2_score
+    # Au cas où il reste des doublons, on prend le premier qui vient
+    tmp = tmp.reset_index(drop=False)
+    tmp = tmp.rename(columns={'index':'indexation'})
+    key_merge = [x for x in key]
+    key_merge.append('indexation')
+    tmp2 = tmp.groupby(key).agg({'indexation':'min'}).reset_index(drop=False)
+    tmp2 = tmp2.rename(columns={'index':'indexation'})
+    tmp = tmp.merge(tmp2, left_on=key_merge, right_on=key_merge)[cols]
+    
+    return tmp
 
-from sklearn.preprocessing import PowerTransformer
+def TransformUnique(df, key):
+
+    if type(key) == str:
+        key = [key]
+    dfCat = df[key].drop_duplicates()
+    categorical_ix = df.select_dtypes(include=['object']).columns
+    for col in categorical_ix:
+        dfCat = dfCat.merge(ColMode(df, col, key), left_on=key, right_on=key, how='left')
+    try:
+        dfNum = df.groupby(key).mean().reset_index(drop=False)
+        dfUnique = dfCat.merge(dfNum, left_on=key, right_on=key, how='left')
+        return dfUnique
+    except:
+        return dfCat
 
 
 
@@ -916,7 +915,6 @@ def prepareData(train_or_test, only_default=False):
     #dfPreviousApplication = dfPreviousApplication.merge(dfInstallmentsPayments, left_on=['SK_ID_CURR','SK_ID_PREV'], right_on = ['SK_ID_CURR','SK_ID_PREV'], how='left')
     #dfBureau = dfBureau.merge(dfBureauBalance, left_on='SK_ID_BUREAU', right_on = 'SK_ID_BUREAU', how='left')
 
-    dump(dfPreviousApplication,open('dfPreviousApplication.pkl','wb'))
     dfPreviousApplication = TransformUnique(dfPreviousApplication, ['SK_ID_CURR'])
     dfBureau = TransformUnique(dfBureau, ['SK_ID_CURR'])
 
@@ -1000,8 +998,6 @@ def prepareData(train_or_test, only_default=False):
     # FUSION DES JEUX DE DONNEES PAR DEFAUT ET TRAVAILLE
     ##################################################################################
     ##################################################################################
-    dump(dfApplication,open('dfApplication.pkl','wb'))
-    dump(dfApplicationDefault,open('dfApplicationDefault.pkl','wb'))
     for col in dfApplicationDefault.columns:
         if col not in dfApplication.columns:
             dfApplication = dfApplication.merge(dfApplicationDefault[['SK_ID_CURR',col]])
