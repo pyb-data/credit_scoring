@@ -1,6 +1,6 @@
 # credit_scoring
 
-All the different steps from data analysis to model training are contained in the jupyter notbooks (.ipynb)
+All the different steps from data analysis to model training are contained in the 5 jupyter notbooks (.ipynb)
 
 The code to be deployed is embeddeed in projet_7.zip, it contains:
     - the code of the API (which returns either a JSON with a client scoring or an web page from which the model can be run and the dashboard can be launched)
