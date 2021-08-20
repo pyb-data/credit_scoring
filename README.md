@@ -4,6 +4,8 @@ All the different steps from data analysis to model training are contained in th
 
 The code to be deployed is embeddeed in projet_7.zip, it contains:
 
+    - a read me file with the steps to deploy on ECS (Linux Ubuntu)
+
     - the code of the API (which returns either a JSON with a client scoring or an web page from which the model can be run and the dashboard can be launched)
     
     - the code of the dashboard
